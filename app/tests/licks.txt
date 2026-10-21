@@ -1,0 +1,30 @@
+# every lick, recorded one after the other, to listen to:
+#   app/build/host/harmonica_host app/tests/licks.txt app/build/host
+wait 600
+wav licks.wav
+tap PLAY
+wait 3700
+tap SEL
+tap PLAY
+wait 3200
+tap SEL
+tap PLAY
+wait 3100
+tap SEL
+tap PLAY
+wait 5300
+tap SEL
+tap PLAY
+wait 5300
+tap SEL
+tap PLAY
+wait 6300
+tap SEL
+tap PLAY
+wait 8500
+tap SEL
+tap PLAY
+wait 2300
+wavstop
+expect holes 0
+expect lick 7

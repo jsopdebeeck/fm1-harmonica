@@ -3,7 +3,7 @@
 # url: https://example.org/fm1-harmonica/words/
 # (to replace with the published site's address before a release)
 HARMONICA	harmonica
-REGLAGES	settings
-SOUFFLE	breath
-AMPLI	amp
-TIMBRE	timbre
+SETUP	setup
+BREATH	breath
+AMP	amp
+TONE	tone

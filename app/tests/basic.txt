@@ -48,7 +48,8 @@ expect key 4
 turn PRESET 2
 wait 50
 expect key 6
-tap SEL
+turn K1 1
+wait 50
 expect pos 2
 shot melody.png
 tap OCT-
@@ -64,17 +65,16 @@ expect page 4
 shot setup.png
 tap HOME
 expect page 0
-# HOME again: the notes by letter (C D E), then back to Do Re Mi
-tap HOME
-wait 30
+# HOME again: the notes in Latin (Do Re Mi), then back to letters (C D E), the default
 expect notation 1
-shot letters.png
 tap HOME
 wait 30
 expect notation 0
 shot latin.png
 tap HOME
+wait 30
 expect notation 1
+shot letters.png
 expect dirty 1
 tap SAVE
 wait 30
@@ -84,9 +84,21 @@ wait 600
 expect tuning 1
 expect oct -1
 expect notation 1
-# the lick
+# the licks: PLAY plays BLUES, SEL picks TRAIN (its first step a chord, 1 2 3 draw), PLAY stops it
+expect lick 0
 tap PLAY
 wait 1500
 shot lick.png
 wait 2500
 expect holes 0
+tap SEL
+expect lick 1
+tap PLAY
+wait 80
+expect holes 7168
+shot train.png
+tap PLAY
+wait 30
+expect holes 0
+turn K3 -1
+expect lick 0
