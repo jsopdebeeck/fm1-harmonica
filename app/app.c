@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 /* HARMONICA: a 10-hole diatonic harmonica on the FM-1. The keys are a piano: each plays its own pitch from the hole
- * that has it, blown or drawn, or bent down to it; the keys the harmonica can play are lit (bright: a hole's own
- * note, dim: a bend), the others are dark. ALGORITHM picks the tuning, PRESET the harmonica's key, SELECT and the
- * page buttons (HOME ENV LFO FX GLO) the page whose values KNOB 1-4 set; HOME on the home page switches the notes'
- * names between Do Re Mi and C D E; ARP held closes the hands (wah), SEQ held is the hand's tremolo. Part of the unity build (device/unity.c, host/plat_host.c), after the platform: gfx.c and
+ * that has it, blown or drawn, or bent down to it. The keys' lights (one colour, two brightnesses) tell which: a
+ * blown note bright, a drawn one dim; a bent note's key stays dark but plays. ALGORITHM picks the tuning, PRESET the
+ * harmonica's key, SELECT and the page buttons (HOME ENV LFO FX GLO) the page whose values KNOB 1-4 set; HOME on
+ * the home page switches the notes' names between Do Re Mi and C D E; ARP held closes the hands (wah), SEQ held is
+ * the hand's tremolo. Part of the unity build (device/unity.c, host/plat_host.c), after the platform: gfx.c and
  * announce.c are in scope. */
 #include "fastmath.h"
 #include "harmo.h"
@@ -253,7 +254,7 @@ static struct {
     int8_t id;                           /* draw * 10 + hole, -1: no hole has it */
     uint8_t bend;                        /* half steps down */
 } nmap[128];
-static uint32_t keys_natural, keys_bent;   /* the keyboard's playable keys, for the lights */
+static uint32_t keys_blow, keys_draw, keys_bent;   /* the keyboard's playable keys, for the lights */
 
 static void map_build(void)
 {
@@ -278,15 +279,17 @@ static void map_build(void)
                     nmap[n].bend = (uint8_t)b;
                 }
             }
-    keys_natural = keys_bent = 0;
+    keys_blow = keys_draw = keys_bent = 0;
     for (k = 0; k < NKEYS; k++) {
         n = key_note(k);
         if (n < 0 || n > 127 || nmap[n].id < 0)
             continue;
         if (nmap[n].bend)
             keys_bent |= 1u << k;
+        else if (nmap[n].id >= 10)
+            keys_draw |= 1u << k;
         else
-            keys_natural |= 1u << k;
+            keys_blow |= 1u << k;
     }
 }
 
@@ -675,8 +678,8 @@ static void input(void)
     }
     ui.keys = keys;
     ui.btn = btn;
-    /* the lights: a hole's own notes bright, the bent ones dim, the others dark; what sounds bright (the lick too) */
-    lit_keys = keys_natural | (keys & (keys_natural | keys_bent));
+    /* the lights: the blown notes bright, the drawn ones dim, the others dark; what sounds bright (the lick too) */
+    lit_keys = keys_blow | (keys & (keys_blow | keys_draw | keys_bent));
     for (id = 0; id < 20u; id++)
         if (play.sounding >> id & 1u) {
             int32_t kk = play.note[id] - key_note(0);
@@ -684,7 +687,7 @@ static void input(void)
                 lit_keys |= 1u << kk;
         }
     lit_btn = btn | 1u << PAGE_BTN[set.page] | (demo.on ? 1u << B_PLAY : 0u) | (set_dirty ? 1u << B_SAVE : 0u);
-    plat_lights(lit_btn, lit_keys, ~lit_btn & ((1u << NB) - 1u), keys_bent & ~lit_keys, 1);
+    plat_lights(lit_btn, lit_keys, ~lit_btn & ((1u << NB) - 1u), keys_draw & ~lit_keys, 2);
 }
 
 void app_input_only(void) { input(); }
@@ -945,9 +948,11 @@ int app_expect(const char *what, int *got)
         *got = set_dirty;
     else if (!strcmp(what, "notation"))
         *got = set.notation;
-    else if (!strcmp(what, "lit"))           /* the keyboard's lit keys: a hole's own notes */
-        *got = (int)keys_natural;
-    else if (!strcmp(what, "dim"))           /* and the bent ones */
+    else if (!strcmp(what, "blow"))          /* the keyboard's keys: blown notes (bright), */
+        *got = (int)keys_blow;
+    else if (!strcmp(what, "draw"))          /* drawn ones (dim), */
+        *got = (int)keys_draw;
+    else if (!strcmp(what, "bent"))          /* bent ones (dark) */
         *got = (int)keys_bent;
     else if (!strcmp(what, "bend")) {        /* the deepest bend on the sounding holes */
         *got = 0;
