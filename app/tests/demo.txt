@@ -21,15 +21,7 @@ key 24 up
 key 26 down
 wait 900
 key 26 up
-# a long draw with a slow bend: 3 draw, down a whole step and back
-key 18 down
-wait 600
-key 16 down
-wait 700
-key 16 up
-wait 500
-key 18 up
-# a chord: holes 1 2 3 4 blow (C4 E4 G4 C5)
+# a chord: C4 E4 G4 C5 (1 and 2 blow, 2 draw, 4 blow: G4 is the lower hole, 2 draw)
 key 7 down
 key 11 down
 key 14 down

@@ -1,44 +1,102 @@
 # every lick, recorded one after the other, to listen to:
 #   app/build/host/harmonica_host app/tests/licks.txt app/build/host
-# PLAY loops a lick; SELECT while it plays moves to the next, which starts at once; PLAY again stops
+# PLAY loops a lick; SELECT while it plays moves to the next, which starts at once; PLAY again stops. Each group
+# plays on its own harmonica: ALGORITHM moves to the next tuning before it
 wait 600
 wav licks.wav
 tap PLAY
-wait 3700
+# BLUES
+wait 3490
 turn SELECT 1
-wait 2900
+# TRAIN
+wait 2850
 turn SELECT 1
-wait 3100
+# WAIL
+wait 3140
 turn SELECT 1
-wait 2300
+# BOOGIE
+wait 2780
 turn SELECT 1
-wait 5300
+# SCALE
+wait 5200
 turn SELECT 1
-wait 5300
+# BENDS
+wait 5380
 turn SELECT 1
-wait 2300
+# SHAKE
+wait 2310
 turn SELECT 1
-wait 6300
+# FOLK
+wait 6340
 turn SELECT 1
-wait 8500
+# SAINTS
+wait 8930
 turn SELECT 1
-wait 4300
+# AMAZING
+wait 4620
 turn SELECT 1
-wait 5100
+# MARY
+wait 5540
 turn SELECT 1
-wait 4300
+# CROSS
+wait 5240
 turn SELECT 1
+# CHORDS
+wait 3960
+turn SELECT 1
+# DRONE
+wait 4390
+turn SELECT 1
+# HIGH
+wait 4850
+turn SELECT 1
+# JINGLE
+wait 4380
+turn SELECT 1
+# TWINKLE
+wait 5570
+turn ALGO 1
+turn SELECT 1
+# MELODY
+wait 5200
+turn SELECT 1
+# ODE
 wait 5500
 turn SELECT 1
-wait 4300
+# STAR
+wait 5570
 turn SELECT 1
-wait 3700
+# COUNTRY
+wait 3900
+turn ALGO 1
 turn SELECT 1
-wait 5700
+# MINOR
+wait 5260
 turn SELECT 1
-wait 3500
+# DARK
+wait 3920
+turn SELECT 1
+# SOUL
+wait 4050
+turn SELECT 1
+# REGGAE
+wait 4530
+turn ALGO 1
+turn SELECT 1
+# EASTERN
+wait 6400
+turn SELECT 1
+# DANCE
+wait 3550
+turn SELECT 1
+# HORA
+wait 3640
+turn SELECT 1
+# LAMENT
+wait 4990
 tap PLAY
 wait 300
 wavstop
 expect holes 0
-expect lick 16
+expect lick 28
+expect tuning 3
