@@ -40,7 +40,7 @@ expect holes 0
 key 10 up
 wait 300
 wavstop
-# the tuning, the key, the position, the octave
+# each setting has one control: ALGORITHM the tuning, PRESET the key, SEL the position, OCT the octave
 turn ALGO 1
 wait 50
 expect tuning 1
@@ -48,32 +48,111 @@ expect key 4
 turn PRESET 2
 wait 50
 expect key 6
-turn K1 1
+tap SEL
 wait 50
 expect pos 2
+expect lick 0
 shot melody.png
 tap OCT-
 expect oct -1
-# the pages
+# the knobs do nothing on the home page (they say where they work)
+turn K1 1
+wait 50
+expect pos 2
+expect oct -1
+# REED (ENV): K2 the breath
 tap ENV
 expect page 1
 turn K2 3
 wait 50
-shot timbre.png
+shot reed.png
+tap LFO
+expect page 2
+shot hands.png
+tap FX
+expect page 3
+shot amp.png
+# EDIT, the only place for the sound: the breath turned made it CUSTOM, so BLUES, then FOLK
+expect preset 4
+tap EDIT
+wait 30
+expect preset 0
+tap EDIT
+wait 30
+expect preset 1
+# SETUP (GLO): K1 the note names, K2 the drawn notes' lights
 tap GLO
 expect page 4
+expect notation 1
+turn K1 1
+wait 50
+expect notation 0
 shot setup.png
+turn K1 1
+wait 50
+expect notation 1
+expect lights 2
+turn K2 1
+wait 50
+expect lights 1
+# K3 the keys: HOLES (white blow, black draw); K4 the mouth: 3 holes
+turn K3 1
+wait 50
+expect keymode 1
+turn K4 2
+wait 50
+expect mouth 3
+shot setup-holes.png
+# white key 4: 4 blow, with 3 and 5 blown too (holes 2 3 4 = bits 4 8 16)
+tap HOME
+key w3 down
+wait 200
+expect holes 28
+shot holes-mouth3.png
+key w3 up
+tap GLO
+wait 50
+expect holes 0
+# black key 3 (3 draw) with the bend key for a whole step: 3 draw bent, 2 and 4 draw plain (bits 11 12 13); on this
+# Melody Maker 3 draw bends a half step only
+key b2 down
+key w11 down
+wait 200
+expect holes 14336
+expect bend 1
+key w11 up
+wait 50
+expect bend 0
+key b2 up
+# a mouth of 2 at the top: 10 blow takes 9 too (bits 8 9)
+turn K4 -1
+wait 50
+expect mouth 2
+key w9 down
+wait 100
+expect holes 768
+key w9 up
+# back to PIANO with a mouth of 3: on this Bb Melody Maker an octave down, key 24 is F4, 1 draw: 1 and 2 draw sound
+# (hole 1 has no neighbour below: bits 10 11)
+turn K3 1
+wait 50
+expect keymode 0
+turn K4 1
+wait 50
+tap HOME
+key 24 down
+wait 200
+expect holes 3072
+shot piano-mouth3.png
+key 24 up
+tap GLO
+wait 50
+expect holes 0
+turn K4 -2
+wait 50
+expect mouth 1
 tap HOME
 expect page 0
-# HOME again: the notes in Latin (Do Re Mi), then back to letters (C D E), the default
-expect notation 1
-tap HOME
-wait 30
-expect notation 0
-shot latin.png
-tap HOME
-wait 30
-expect notation 1
 shot letters.png
 expect dirty 1
 tap SAVE
@@ -84,7 +163,9 @@ wait 600
 expect tuning 1
 expect oct -1
 expect notation 1
-# the licks: PLAY plays BLUES, SEL picks TRAIN (its first step a chord, 1 2 3 draw), PLAY stops it
+expect lights 1
+expect preset 1
+# the licks: SELECT picks, PLAY loops until PLAY again
 expect lick 0
 tap PLAY
 wait 1500
@@ -96,34 +177,29 @@ expect holes >0
 tap PLAY
 wait 30
 expect holes 0
-tap SEL
+turn SELECT 1
+wait 200
 expect lick 1
 tap PLAY
 wait 80
+# TRAIN's first step is a chord: 1 2 3 draw
 expect holes 7168
 shot train.png
 tap PLAY
 wait 30
 expect holes 0
-turn K3 -1
-expect lick 0
-# the SELECT knob picks the lick too
-turn SELECT 2
-wait 200
-expect lick 2
-expect page 0
-turn SELECT -2
-wait 200
-expect lick 0
+# SEL is the position, not the lick
+tap SEL
+expect lick 1
 # the licks for the other tunings, their names in those tunings' colours
-turn SELECT -1
-wait 200
-expect lick 10
-shot eastern.png
 turn SELECT -2
 wait 200
-expect lick 8
-shot melody-lick.png
-turn SELECT 3
+expect lick 16
+shot dance.png
+turn SELECT -4
+wait 200
+expect lick 12
+shot ode.png
+turn SELECT 5
 wait 200
 expect lick 0

@@ -1,26 +1,44 @@
 # every lick, recorded one after the other, to listen to:
 #   app/build/host/harmonica_host app/tests/licks.txt app/build/host
-# PLAY loops a lick; SEL while it plays moves to the next, which starts at once; PLAY again stops
+# PLAY loops a lick; SELECT while it plays moves to the next, which starts at once; PLAY again stops
 wait 600
 wav licks.wav
 tap PLAY
 wait 3700
-tap SEL
-wait 3200
-tap SEL
+turn SELECT 1
+wait 2900
+turn SELECT 1
 wait 3100
-tap SEL
-wait 5300
-tap SEL
-wait 5300
-tap SEL
-wait 6300
-tap SEL
-wait 8500
-tap SEL
+turn SELECT 1
 wait 2300
+turn SELECT 1
+wait 5300
+turn SELECT 1
+wait 5300
+turn SELECT 1
+wait 2300
+turn SELECT 1
+wait 6300
+turn SELECT 1
+wait 8500
+turn SELECT 1
+wait 4300
+turn SELECT 1
+wait 5100
+turn SELECT 1
+wait 4300
+turn SELECT 1
+wait 5500
+turn SELECT 1
+wait 4300
+turn SELECT 1
+wait 3700
+turn SELECT 1
+wait 5700
+turn SELECT 1
+wait 3500
 tap PLAY
 wait 300
 wavstop
 expect holes 0
-expect lick 7
+expect lick 16
