@@ -1,0 +1,51 @@
+# HARMONICA's sound, to listen to: the lick and a scale, recorded, then the same on the FM reed
+#   app/build/host/harmonica_host app/tests/demo.txt app/build/host
+wait 600
+wav demo-samples.wav
+tap PLAY
+wait 3200
+# the scale of C, hole 4 blow to hole 7 blow (keys 19 21 23 24 26)
+key 19 down
+wait 400
+key 19 up
+key 21 down
+wait 400
+key 21 up
+key 23 down
+wait 400
+key 23 up
+key 24 down
+wait 400
+key 24 up
+key 26 down
+wait 900
+key 26 up
+# a long draw with a slow bend: 3 draw, down a whole step and back
+key 18 down
+wait 600
+key 16 down
+wait 700
+key 16 up
+wait 500
+key 18 up
+# a chord: holes 1 2 3 4 blow (C4 E4 G4 C5)
+key 7 down
+key 11 down
+key 14 down
+key 19 down
+wait 1200
+key 7 up
+key 11 up
+key 14 up
+key 19 up
+wait 600
+wavstop
+expect holes 0
+tap EDIT
+tap EDIT
+tap EDIT
+wait 30
+wav demo-fm.wav
+tap PLAY
+wait 3200
+wavstop

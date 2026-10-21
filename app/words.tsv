@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: MPL-2.0
+# HARMONICA's words for a screen reader (fm1-reader): the text on the screen <TAB> what to say.
+# url: https://example.org/fm1-harmonica/words/
+# (to replace with the published site's address before a release)
+HARMONICA	harmonica
+REGLAGES	settings
+SOUFFLE	breath
+AMPLI	amp
+TIMBRE	timbre

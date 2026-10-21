@@ -1,0 +1,961 @@
+/* SPDX-License-Identifier: MPL-2.0 */
+/* HARMONICA: a 10-hole diatonic harmonica on the FM-1. The keys are a piano: each plays its own pitch from the hole
+ * that has it, blown or drawn, or bent down to it; the keys the harmonica can play are lit (bright: a hole's own
+ * note, dim: a bend), the others are dark. ALGORITHM picks the tuning, PRESET the harmonica's key, SELECT and the
+ * page buttons (HOME ENV LFO FX GLO) the page whose values KNOB 1-4 set; HOME on the home page switches the notes'
+ * names between Do Re Mi and C D E; ARP held closes the hands (wah), SEQ held is the hand's tremolo. Part of the unity build (device/unity.c, host/plat_host.c), after the platform: gfx.c and
+ * announce.c are in scope. */
+#include "fastmath.h"
+#include "harmo.h"
+
+/* ---------------------------------------------------------- the harmonicas --- */
+/* Lee Oskar's tunings: each key by its label and the MIDI note of hole 1 blow; label_off 7 = labelled by the
+ * 2nd-position key (hole 2 draw); the four positions as Lee Oskar's charts give them, from the labelled key */
+typedef struct {
+    const char *label;
+    uint8_t hole1;
+} hkey_t;
+typedef struct {
+    const char *mode;
+    uint8_t off, minor;
+} hpos_t;
+typedef struct {
+    const char *name, *shortname;
+    uint8_t label_off, def_pos;
+    uint8_t blow[10], draw[10];
+    const hkey_t *keys;
+    uint8_t nkeys;
+    hpos_t pos[4];
+} tuning_t;
+
+static const hkey_t K_MAJOR[] = {{"LOW C", 48}, {"LOW D", 50}, {"LOW Eb", 51}, {"LOW E", 52}, {"LOW F", 53},
+                                 {"G", 55}, {"Ab", 56}, {"A", 57}, {"Bb", 58}, {"B", 59}, {"C", 60}, {"Db", 61},
+                                 {"D", 62}, {"Eb", 63}, {"E", 64}, {"F", 65}, {"F#", 66}, {"HI G", 67}};
+static const hkey_t K_MELODY[] = {{"C", 53}, {"D", 55}, {"E", 57}, {"F", 58}, {"G", 60}, {"A", 62}, {"Bb", 63},
+                                  {"B", 64}, {"HI C", 65}};
+static const hkey_t K_NATMIN[] = {{"Dm", 55}, {"Ebm", 56}, {"Em", 57}, {"Fm", 58}, {"F#m", 59}, {"Gm", 60},
+                                  {"Abm", 61}, {"Am", 62}, {"Bbm", 63}, {"Bm", 64}, {"Cm", 65}, {"C#m", 66}};
+static const hkey_t K_HARMIN[] = {{"LOW Em", 52}, {"Gm", 55}, {"Abm", 56}, {"Am", 57}, {"Bbm", 58}, {"Bm", 59},
+                                  {"Cm", 60}, {"C#m", 61}, {"Dm", 62}, {"Ebm", 63}, {"Em", 64}, {"Fm", 65},
+                                  {"F#m", 66}};
+#define NK(a) (uint8_t)(sizeof(a) / sizeof(a[0]))
+
+static const tuning_t TUN[] = {
+    {"MAJOR DIATONIC", "MAJ", 0, 1, {0, 4, 7, 12, 16, 19, 24, 28, 31, 36}, {2, 7, 11, 14, 17, 21, 23, 26, 29, 33},
+     K_MAJOR, NK(K_MAJOR), {{"majeur", 0, 0}, {"dominant", 7, 0}, {"dorien", 2, 1}, {"mineur", 9, 1}}},
+    {"MELODY MAKER", "MM", 7, 1, {0, 4, 9, 12, 16, 19, 24, 28, 31, 36}, {2, 7, 11, 14, 18, 21, 23, 26, 30, 33},
+     K_MELODY, NK(K_MELODY), {{"dorien", 2, 1}, {"majeur", 0, 0}, {"dominant", 7, 0}, {"mineur", 9, 1}}},
+    {"NATURAL MINOR", "NAT", 7, 1, {0, 3, 7, 12, 15, 19, 24, 27, 31, 36}, {2, 7, 10, 14, 17, 21, 22, 26, 29, 33},
+     K_NATMIN, NK(K_NATMIN), {{"dorien", 5, 1}, {"mineur", 0, 1}, {"majeur", 3, 0}, {"dominant", 10, 0}}},
+    {"HARMONIC MINOR", "HAR", 0, 0, {0, 3, 7, 12, 15, 19, 24, 27, 31, 36}, {2, 7, 11, 14, 17, 20, 23, 26, 29, 32},
+     K_HARMIN, NK(K_HARMIN), {{"mineur", 0, 1}, {"majeur", 3, 0}, {"dominant", 10, 0}, {"dorien", 5, 1}}},
+};
+#define NTUN 4u
+
+/* the two notations, HOME on the home page switching: Latin (Do Re Mi) or letters (C D E) */
+static const char *const NOTE_LATIN[12] = {"Do", "Do#", "Re", "Mib", "Mi", "Fa", "Fa#", "Sol", "Lab", "La", "Sib",
+                                           "Si"};
+static const char *const NOTE_ABC[12] = {"C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"};
+static const char *const ORD[4] = {"1re", "2e", "3e", "4e"};
+
+/* ------------------------------------------------------- settings and pages --- */
+enum { PR_ATTACK, PR_INDEX, PR_GRAIN, PR_NASAL, PR_BREATH, PR_VIB, PR_RATE, PR_TREM, PR_DRIVE, PR_WAHLO, PR_GLIDE,
+       PR_VOL, PR_SOURCE };                         /* harmo.h hm_params_t, in its order */
+enum { U_MS, U_F1, U_DB, U_PCT, U_CT, U_HZ1, U_HZ, U_SRC };
+static const struct {
+    const char *label;
+    float lo, hi, step;
+    uint8_t unit;
+} PRM[HM_NPARAMS] = {
+    {"Attaque", 5.0f, 120.0f, 5.0f, U_MS},   {"Brillance", 0.3f, 4.0f, 0.1f, U_F1},
+    {"Grain", 0.0f, 2.5f, 0.1f, U_F1},       {"Nasalite", 0.0f, 14.0f, 0.5f, U_DB},
+    {"Souffle", 0.0f, 0.4f, 0.02f, U_PCT},   {"Vibrato", 0.0f, 30.0f, 1.0f, U_CT},
+    {"Vitesse", 2.0f, 8.0f, 0.1f, U_HZ1},    {"Tremolo", 0.0f, 1.0f, 0.05f, U_PCT},
+    {"Saturation", 0.0f, 1.0f, 0.05f, U_PCT}, {"Main fermee", 300.0f, 2000.0f, 50.0f, U_HZ},
+    {"Vitesse bend", 10.0f, 200.0f, 5.0f, U_MS}, {"Volume", 0.0f, 1.0f, 0.05f, U_PCT},
+    {"Source", 0.0f, 1.0f, 1.0f, U_SRC},
+};
+/* the first three play the recorded harmonica, the last the FM reed */
+#define NPRESETS 4u
+static const char *const PRESET_NAME[NPRESETS] = {"BLUES", "FOLK", "CHICAGO", "FM"};
+static const hm_params_t PRESET[NPRESETS] = {
+    {8.0f, 2.6f, 1.1f, 4.0f, 0.06f, 6.0f, 5.5f, 0.5f, 0.0f, 650.0f, 45.0f, 0.8f, 0.0f},
+    {25.0f, 1.8f, 0.4f, 2.0f, 0.05f, 3.0f, 5.0f, 0.35f, 0.0f, 900.0f, 60.0f, 0.8f, 0.0f},
+    {6.0f, 3.4f, 1.7f, 9.0f, 0.04f, 12.0f, 6.2f, 0.6f, 0.55f, 500.0f, 35.0f, 0.7f, 0.0f},
+    {20.0f, 2.6f, 1.1f, 8.0f, 0.18f, 8.0f, 5.5f, 0.5f, 0.0f, 650.0f, 45.0f, 0.8f, 1.0f},
+};
+
+#define SET_MAGIC 0x33524148u            /* "HAR3": the settings record; another magic loads defaults */
+typedef struct {
+    uint32_t magic;
+    uint8_t tuning, key, pos, preset;    /* preset: NPRESETS = changed by hand */
+    int8_t oct;                          /* the keyboard's octave, -2 .. +1: key 0 is F3 + 12 * oct */
+    uint8_t page;
+    uint8_t notation;                    /* 0 Latin (Do Re Mi), 1 letters (C D E) */
+    uint8_t rsv[1];
+    hm_params_t p;
+} settings_t;
+static settings_t set;
+static uint8_t set_dirty;                /* changed since the last save: SAVE is lit */
+
+enum { PG_HOME, PG_TIMBRE, PG_BREATH, PG_AMP, PG_SETUP, NPAGES };
+static const char *const PAGE_NAME[NPAGES] = {"HARMONICA", "TIMBRE", "SOUFFLE", "AMPLI", "REGLAGES"};
+static const uint8_t PAGE_BTN[NPAGES] = {B_HOME, B_ENV, B_LFO, B_FX, B_GLO};
+/* what KNOB 1-4 set on each page: a parameter (PR_*), or one of these */
+enum { KN_POS = 100, KN_OCT, KN_TUNING, KN_KEY };
+static const uint8_t PAGE_KNOB[NPAGES][4] = {
+    {KN_POS, KN_OCT, PR_VIB, PR_VOL},
+    {PR_SOURCE, PR_ATTACK, PR_INDEX, PR_GRAIN},
+    {PR_BREATH, PR_VIB, PR_RATE, PR_TREM},
+    {PR_DRIVE, PR_NASAL, PR_WAHLO, PR_GLIDE},
+    {KN_TUNING, KN_KEY, KN_POS, KN_OCT},
+};
+
+static const tuning_t *tun(void) { return &TUN[set.tuning]; }
+static const hkey_t *hkey(void) { return &tun()->keys[set.key]; }
+static float *param(uint32_t i) { return (float *)&set.p + i; }
+
+/* the note of hole h (0..9), blown (draw 0) or drawn (draw 1) */
+static int32_t hole_note(uint32_t draw, uint32_t h)
+{
+    return (int32_t)hkey()->hole1 + (int32_t)(draw ? tun()->draw[h] : tun()->blow[h]);
+}
+/* how far a hole's note bends: only the higher reed of the pair, to a half step above the other */
+static int32_t bend_max(uint32_t draw, uint32_t h)
+{
+    int32_t b = tun()->blow[h], d = tun()->draw[h], m = draw ? d - b - 1 : b - d - 1;
+    return m > 0 ? m : 0;
+}
+static uint32_t root_pc(void)            /* the pitch class the chosen position plays in */
+{
+    return ((uint32_t)hkey()->hole1 + tun()->label_off + tun()->pos[set.pos].off) % 12u;
+}
+static int32_t key_note(uint32_t k) { return 53 + (int32_t)k + 12 * set.oct; }   /* key 0 is F3 */
+static const char *note_name(int32_t n) { return (set.notation ? NOTE_ABC : NOTE_LATIN)[n % 12]; }
+
+/* the harmonica's key in the chosen notation: "LOW Eb" or "LOW Mib", "F#m" or "Fa#m" */
+static void key_label(char *t)
+{
+    static const char *const LATIN[7] = {"La", "Si", "Do", "Re", "Mi", "Fa", "Sol"};   /* A .. G */
+    const char *s = hkey()->label;
+    char *d = t;
+    if (!set.notation) {
+        while (*s && (*s < 'A' || *s > 'G' || s[1] == 'O' || s[1] == 'I'))   /* "LOW ", "HI " as they are */
+            *d++ = *s++;
+        if (*s >= 'A' && *s <= 'G') {
+            const char *l = LATIN[*s++ - 'A'];
+            while (*l)
+                *d++ = *l++;
+        }
+    }
+    while (*s)
+        *d++ = *s++;
+    *d = 0;
+}
+
+/* ------------------------------------------------------------------ text --- */
+static void text_cat(char *d, const char *s)
+{
+    while (*d)
+        d++;
+    while (*s)
+        *d++ = *s++;
+    *d = 0;
+}
+
+static void int_text(int32_t v, char *b)     /* signed, no padding */
+{
+    char t[12];
+    int n = 0;
+    uint32_t u = (uint32_t)(v < 0 ? -v : v);
+    do
+        t[n++] = (char)('0' + u % 10u);
+    while ((u /= 10u) && n < 11);
+    if (v < 0)
+        *b++ = '-';
+    while (n)
+        *b++ = t[--n];
+    *b = 0;
+}
+
+static void tenths_text(float v, char *b)   /* one decimal */
+{
+    int32_t t = (int32_t)(v * 10.0f + (v < 0.0f ? -0.5f : 0.5f));
+    char d[4] = {'.', 0, 0, 0};
+    int_text(t / 10, b);
+    d[1] = (char)('0' + (t < 0 ? -t : t) % 10);
+    text_cat(b, d);
+}
+
+static void param_text(uint32_t i, char *b)
+{
+    float v = *param(i);
+    b[0] = 0;
+    switch (PRM[i].unit) {
+    case U_MS: int_text((int32_t)(v + 0.5f), b); text_cat(b, " ms"); break;
+    case U_F1: tenths_text(v, b); break;
+    case U_DB: b[0] = '+'; b[1] = 0; tenths_text(v, b + 1); text_cat(b, " dB"); break;
+    case U_PCT: int_text((int32_t)(v * 100.0f + 0.5f), b); text_cat(b, " %"); break;
+    case U_CT: int_text((int32_t)(v + 0.5f), b); text_cat(b, " ct"); break;
+    case U_HZ1: tenths_text(v, b); text_cat(b, " Hz"); break;
+    case U_SRC: text_cat(b, v > 0.5f ? "FM" : "Echantillons"); break;
+    default: int_text((int32_t)(v + 0.5f), b); text_cat(b, " Hz"); break;
+    }
+}
+
+static void octave_text(char *t)
+{
+    t[0] = set.oct < 0 ? '-' : '+';
+    t[1] = (char)('0' + (set.oct < 0 ? -set.oct : set.oct));
+    t[2] = 0;
+}
+
+static void note_text(int32_t n, char *t)   /* "Sol4" */
+{
+    char o[8];
+    t[0] = 0;
+    text_cat(t, note_name(n));
+    int_text(n / 12 - 1, o);
+    text_cat(t, o);
+}
+
+/* ------------------------------------------------------------------ audio --- */
+static float gain_now;                   /* glides to MASTER: no step at a block's edge */
+
+void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
+{
+    static float buf[APP_BLOCK];
+    float gain = (float)master_q12 * (1.0f / 4096.0f) * 8300000.0f;   /* MASTER, read once a block */
+    uint32_t i, done = 0;
+    while (done < n) {
+        uint32_t m = n - done < APP_BLOCK ? n - done : APP_BLOCK;
+        hm_render(buf, m);
+        for (i = 0; i < m; i++) {
+            int32_t s;
+            gain_now += (gain - gain_now) * 0.004f;
+            s = (int32_t)(buf[i] * gain_now);
+            lr[2u * (done + i)] = s;
+            lr[2u * (done + i) + 1u] = s;
+        }
+        done += m;
+    }
+}
+
+void app_panic(void) { hm_panic(); }
+
+/* the keyboard's octave that puts hole 1 among its first twelve keys */
+static int8_t octave_for_key(void) { return (int8_t)(((int32_t)hkey()->hole1 - 53 + 24) / 12 - 2); }
+
+/* ------------------------------------------------------------------- play --- */
+/* Each key's note comes from the hole that has it: its own note first (a note on two holes, G on 2 draw and 3 blow,
+ * keeps the lower hole), else a bend that reaches it. A bent note starts on the hole's own pitch and glides down. */
+static struct {
+    int8_t id;                           /* draw * 10 + hole, -1: no hole has it */
+    uint8_t bend;                        /* half steps down */
+} nmap[128];
+static uint32_t keys_natural, keys_bent;   /* the keyboard's playable keys, for the lights */
+
+static void map_build(void)
+{
+    uint32_t h, d, k;
+    int32_t n, b;
+    for (k = 0; k < 128u; k++)
+        nmap[k].id = -1;
+    for (h = 0; h < 10u; h++)
+        for (d = 0; d < 2u; d++) {
+            n = hole_note(d, h);
+            if (n < 128 && nmap[n].id < 0) {
+                nmap[n].id = (int8_t)(d * 10u + h);
+                nmap[n].bend = 0;
+            }
+        }
+    for (h = 0; h < 10u; h++)
+        for (d = 0; d < 2u; d++)
+            for (b = 1; b <= bend_max(d, h); b++) {
+                n = hole_note(d, h) - b;
+                if (n >= 0 && n < 128 && nmap[n].id < 0) {
+                    nmap[n].id = (int8_t)(d * 10u + h);
+                    nmap[n].bend = (uint8_t)b;
+                }
+            }
+    keys_natural = keys_bent = 0;
+    for (k = 0; k < NKEYS; k++) {
+        n = key_note(k);
+        if (n < 0 || n > 127 || nmap[n].id < 0)
+            continue;
+        if (nmap[n].bend)
+            keys_bent |= 1u << k;
+        else
+            keys_natural |= 1u << k;
+    }
+}
+
+#define NTAB 32u
+static struct {
+    uint8_t id, bends;                   /* id: draw * 10 + hole */
+} tab[NTAB];
+static uint32_t ntab;                    /* tokens written since the start (the last NTAB kept) */
+
+#define NO_KEY 0xFFu
+static struct {
+    uint32_t sounding;                   /* bit id: hole id sounding (blow 0..9, draw 10..19) */
+    int32_t note[20];                    /* each sounding hole's note, bent */
+    uint8_t bend[20], tok[20], key[20];  /* its bend, its tablature token, the key playing it (NO_KEY: the lick) */
+    uint8_t wah, trem;
+    int32_t last_note;
+} play = {.last_note = -1};
+
+static struct {
+    char msg[2][24];                     /* a short message over the header */
+    uint32_t msg_until;
+    uint32_t keys, btn;                  /* held at the last input */
+    uint8_t redraw;
+} ui;
+
+static void midi_send(uint32_t cin, uint32_t st, uint32_t d1, uint32_t d2)
+{
+    plat_midi_send(cin | st << 8 | d1 << 16 | d2 << 24, TO_USB);
+}
+
+static void tab_add(uint32_t id)
+{
+    tab[ntab % NTAB].id = (uint8_t)id;
+    tab[ntab % NTAB].bends = 0;
+    play.tok[id] = (uint8_t)(ntab % NTAB);
+    ntab++;
+}
+
+/* hole id sounds, bent; a hole already sounding (another key's note on it) moves to this one, as a bend does */
+static void hole_on(uint32_t id, uint32_t bend, uint32_t key)
+{
+    int32_t own = hole_note(id / 10u, id % 10u), note = own - (int32_t)bend;
+    if (play.sounding >> id & 1u) {
+        midi_send(0x08u, 0x80u, (uint32_t)play.note[id], 0u);
+    } else {
+        play.sounding |= 1u << id;
+        tab_add(id);
+        hm_note_on(id, own);
+    }
+    hm_bend(id, (float)bend);
+    play.note[id] = note;
+    play.bend[id] = (uint8_t)bend;
+    play.key[id] = (uint8_t)key;
+    if (bend > tab[play.tok[id]].bends)
+        tab[play.tok[id]].bends = (uint8_t)bend;
+    play.last_note = note;
+    midi_send(0x09u, 0x90u, (uint32_t)note, 100u);
+    ui.redraw = 1;
+}
+
+static void hole_off(uint32_t id)
+{
+    if (!(play.sounding >> id & 1u))
+        return;
+    play.sounding &= ~(1u << id);
+    hm_note_off(id);
+    midi_send(0x08u, 0x80u, (uint32_t)play.note[id], 0u);
+    ui.redraw = 1;
+}
+
+static void holes_off(void)              /* before the notes move (tuning, key, octave) */
+{
+    uint32_t id;
+    for (id = 0; id < 20u; id++)
+        hole_off(id);
+}
+
+/* PLAY: a blues lick in 2nd position, on whichever harmonica is chosen (each bend as far as its hole allows) */
+static const struct {
+    uint8_t draw, h, bend;
+    uint16_t ms;
+} LICK[] = {{1, 1, 0, 340}, {1, 2, 1, 340}, {1, 3, 0, 300}, {1, 3, 1, 260}, {1, 3, 0, 300}, {0, 3, 0, 320},
+            {1, 2, 1, 340}, {1, 1, 0, 900}};
+#define NLICK (sizeof LICK / sizeof LICK[0])
+static struct {
+    uint8_t on, step, sounding;
+    uint32_t next;
+} demo;
+
+static void demo_run(uint32_t now)
+{
+    int32_t s;
+    if (!demo.on || (int32_t)(now - demo.next) < 0)
+        return;
+    if (demo.sounding) {                 /* the note's time is up: a breath between notes */
+        hole_off(LICK[demo.step].draw * 10u + LICK[demo.step].h);
+        demo.sounding = 0;
+        demo.step++;
+        demo.next = now + 30u;
+        return;
+    }
+    if (demo.step >= NLICK) {
+        demo.on = 0;
+        ui.redraw = 1;
+        return;
+    }
+    s = bend_max(LICK[demo.step].draw, LICK[demo.step].h);
+    if (s > LICK[demo.step].bend)
+        s = LICK[demo.step].bend;
+    hole_on(LICK[demo.step].draw * 10u + LICK[demo.step].h, (uint32_t)s, NO_KEY);
+    demo.sounding = 1;
+    demo.next = now + LICK[demo.step].ms;
+}
+
+static void demo_stop(void)
+{
+    if (demo.on && demo.sounding)
+        hole_off(LICK[demo.step].draw * 10u + LICK[demo.step].h);
+    demo.on = demo.sounding = 0;
+}
+
+/* --------------------------------------------------------------- messages --- */
+void app_say(const char *a, const char *b)
+{
+    uint32_t i;
+    char t[48];
+    for (i = 0; i < 23u && a && a[i]; i++)
+        ui.msg[0][i] = a[i];
+    ui.msg[0][i] = 0;
+    for (i = 0; i < 23u && b && b[i]; i++)
+        ui.msg[1][i] = b[i];
+    ui.msg[1][i] = 0;
+    ui.msg_until = plat_ms() + 1300u;
+    ui.redraw = 1;
+    if (ann_on()) {                          /* and to a screen reader (announce.c, fm1-reader) */
+        t[0] = 0;
+        text_cat(t, ui.msg[0]);
+        if (ui.msg[1][0]) {
+            text_cat(t, " ");
+            text_cat(t, ui.msg[1]);
+        }
+        ann_say(t, 0, ANN_NOW);
+    }
+}
+
+static void position_text(char *t)       /* "2e dominant" */
+{
+    t[0] = 0;
+    text_cat(t, ORD[set.pos]);
+    text_cat(t, " ");
+    text_cat(t, tun()->pos[set.pos].mode);
+}
+
+/* a screen reader that has just started listening (or asks) hears the whole screen */
+static void speak(void)
+{
+    char t[128], p[24];
+    if (ann_on() && ann_where()) {
+        t[0] = 0;
+        text_cat(t, APP_NAME ". ");
+        text_cat(t, tun()->name);
+        text_cat(t, " ");
+        key_label(p);
+        text_cat(t, p);
+        text_cat(t, ". JOUE EN ");
+        text_cat(t, note_name((int32_t)root_pc()));
+        position_text(p);
+        text_cat(t, ", ");
+        text_cat(t, p);
+        text_cat(t, ". ");
+        text_cat(t, PAGE_NAME[set.page]);
+        ann_say(t, 0, ANN_NOW);
+    }
+    ann_tick(plat_ms());
+}
+
+/* ---------------------------------------------------------------- changes --- */
+static void changed(void)
+{
+    set_dirty = 1;
+    ui.redraw = 1;
+}
+
+static void tuning_step(int32_t d)
+{
+    const tuning_t *t;
+    uint32_t i;
+    holes_off();
+    set.tuning = (uint8_t)((set.tuning + NTUN + (uint32_t)(d > 0 ? 1 : NTUN - 1)) % NTUN);
+    t = tun();
+    set.key = 0;
+    for (i = 0; i < t->nkeys; i++)       /* the key whose hole 1 blows middle C, as a start */
+        if (t->keys[i].hole1 == 60u)
+            set.key = (uint8_t)i;
+    set.pos = t->def_pos;
+    set.oct = octave_for_key();
+    map_build();
+    changed();
+    app_say(t->name, "");
+}
+
+static void key_step(int32_t d)
+{
+    int32_t k = clamp((int32_t)set.key + d, 0, (int32_t)tun()->nkeys - 1);
+    char t[16];
+    if (k == set.key)
+        return;
+    holes_off();
+    set.key = (uint8_t)k;
+    set.oct = octave_for_key();
+    map_build();
+    changed();
+    key_label(t);
+    app_say("CLE", t);
+}
+
+static void pos_step(int32_t d)
+{
+    char t[24];
+    set.pos = (uint8_t)((set.pos + 4u + (uint32_t)(d > 0 ? 1 : 3)) % 4u);
+    changed();
+    position_text(t);
+    app_say("POSITION", t);
+}
+
+static void octave_step(int32_t d)
+{
+    int32_t o = clamp(set.oct + d, -2, 1);
+    char t[4];
+    if (o == set.oct)
+        return;
+    holes_off();
+    set.oct = (int8_t)o;
+    map_build();
+    changed();
+    octave_text(t);
+    app_say("OCTAVE", t);
+}
+
+static void param_step(uint32_t i, int32_t d)
+{
+    float *v = param(i), x = *v + (float)d * PRM[i].step;
+    *v = fm_clampf(x, PRM[i].lo, PRM[i].hi);
+    set.preset = NPRESETS;
+    hm_params(&set.p);
+    changed();
+}
+
+static void knob_turn(uint32_t k, int32_t d)
+{
+    if (k == KN_POS)
+        pos_step(d);
+    else if (k == KN_OCT)
+        octave_step(d);
+    else if (k == KN_TUNING)
+        tuning_step(d);
+    else if (k == KN_KEY)
+        key_step(d);
+    else
+        param_step(k, d);
+}
+
+static const char *knob_label(uint32_t k)
+{
+    return k == KN_POS ? "Position" : k == KN_OCT ? "Octave" : k == KN_TUNING ? "Accordage" : k == KN_KEY ? "Cle"
+                                                                                                         : PRM[k].label;
+}
+
+static void knob_text(uint32_t k, char *t)
+{
+    t[0] = 0;
+    if (k == KN_POS)
+        position_text(t);
+    else if (k == KN_OCT)
+        octave_text(t);
+    else if (k == KN_TUNING)
+        text_cat(t, tun()->name);
+    else if (k == KN_KEY)
+        key_label(t);
+    else
+        param_text(k, t);
+}
+
+static int32_t knob_fill(uint32_t k, int32_t w)   /* a parameter's bar, 0..w; -1: no bar */
+{
+    if (k >= KN_POS || PRM[k].unit == U_SRC)
+        return -1;
+    return (int32_t)((*param(k) - PRM[k].lo) / (PRM[k].hi - PRM[k].lo) * (float)w + 0.5f);
+}
+
+/* ------------------------------------------------------------------ input --- */
+static void key_event(uint32_t k, int down)
+{
+    int32_t n = key_note(k);
+    int32_t id;
+    if (n < 0 || n > 127 || (id = nmap[n].id) < 0)
+        return;                          /* no hole has this note: a dark key */
+    if (down)
+        hole_on((uint32_t)id, nmap[n].bend, k);
+    else if (play.key[id] == k)          /* (another key may have moved the hole since) */
+        hole_off((uint32_t)id);
+}
+
+static void button(uint32_t b)
+{
+    uint32_t i;
+    if (b == B_HOME && set.page == PG_HOME) {   /* HOME on the home page: the other notation */
+        set.notation ^= 1u;
+        changed();
+        app_say("NOTATION", set.notation ? "C D E" : "DO RE MI");
+        return;
+    }
+    for (i = 0; i < NPAGES; i++)
+        if (b == PAGE_BTN[i]) {
+            set.page = (uint8_t)i;
+            ui.redraw = 1;
+            return;
+        }
+    if (b == B_SEL)
+        pos_step(1);
+    else if (b == B_EDIT) {              /* the next preset sound */
+        set.preset = (uint8_t)(set.preset >= NPRESETS - 1u ? 0u : set.preset + 1u);
+        set.p = PRESET[set.preset];
+        hm_params(&set.p);
+        changed();
+        app_say("SON", PRESET_NAME[set.preset]);
+    } else if (b == B_OCTDN)
+        octave_step(-1);
+    else if (b == B_OCTUP)
+        octave_step(1);
+    else if (b == B_PLAY) {
+        if (demo.on)
+            demo_stop();
+        else {
+            demo.on = 1;
+            demo.step = 0;
+            demo.sounding = 0;
+            demo.next = plat_ms();
+            app_say("EXEMPLE", "2e position");
+        }
+    } else if (b == B_REC) {
+        ntab = 0;
+        app_say("TABLATURE", "EFFACEE");
+    } else if (b == B_SAVE) {
+        if (plat_store_save(OBJ_SETTINGS, &set, sizeof set) == 0) {
+            set_dirty = 0;
+            app_say("SAVED", "");
+        } else {
+            app_say("SAVE", "FAILED");
+        }
+    }
+}
+
+static void input(void)
+{
+    uint32_t keys = plat_keys(), btn = plat_buttons(), k, lit_keys, lit_btn, id;
+    int32_t e;
+    for (k = 0; k < NKEYS; k++)
+        if ((keys ^ ui.keys) >> k & 1u)
+            key_event(k, (int)(keys >> k & 1u));
+    for (k = 0; k < NB; k++)
+        if ((btn >> k & 1u) && !(ui.btn >> k & 1u))
+            button(k);
+    if ((btn ^ ui.btn) >> B_ARP & 1u) {  /* held: the hands closed, the hand's tremolo */
+        play.wah = (uint8_t)(btn >> B_ARP & 1u);
+        hm_wah(play.wah);
+        ui.redraw = 1;
+    }
+    if ((btn ^ ui.btn) >> B_SEQ & 1u) {
+        play.trem = (uint8_t)(btn >> B_SEQ & 1u);
+        hm_trem(play.trem);
+        ui.redraw = 1;
+    }
+    for (k = 0; k < NE; k++) {
+        if ((e = plat_enc((int)k)) == 0)
+            continue;
+        if (k == EN_SELECT) {
+            set.page = (uint8_t)((set.page + NPAGES + (uint32_t)(e > 0 ? 1 : NPAGES - 1)) % NPAGES);
+            ui.redraw = 1;
+        } else if (k == EN_ALGO)
+            tuning_step(e);
+        else if (k == EN_PRESET)
+            key_step(e > 0 ? 1 : -1);
+        else
+            knob_turn(PAGE_KNOB[set.page][k - EN_K1], e);
+    }
+    ui.keys = keys;
+    ui.btn = btn;
+    /* the lights: a hole's own notes bright, the bent ones dim, the others dark; what sounds bright (the lick too) */
+    lit_keys = keys_natural | (keys & (keys_natural | keys_bent));
+    for (id = 0; id < 20u; id++)
+        if (play.sounding >> id & 1u) {
+            int32_t kk = play.note[id] - key_note(0);
+            if (kk >= 0 && kk < NKEYS)
+                lit_keys |= 1u << kk;
+        }
+    lit_btn = btn | 1u << PAGE_BTN[set.page] | (demo.on ? 1u << B_PLAY : 0u) | (set_dirty ? 1u << B_SAVE : 0u);
+    plat_lights(lit_btn, lit_keys, ~lit_btn & ((1u << NB) - 1u), keys_bent & ~lit_keys, 1);
+}
+
+void app_input_only(void) { input(); }
+
+/* ----------------------------------------------------------------- screen --- */
+#define C_BLOW RGB(232, 160, 64)
+#define C_DRAW RGB(96, 176, 220)
+#define C_BOX RGB(18, 22, 26)
+/* each tuning's colour, as Lee Oskar's labels: a band along the bottom of the screen */
+static const uint16_t TUN_RGB[NTUN] = {RGB(214, 76, 52), RGB(90, 186, 240), RGB(146, 196, 66), RGB(240, 222, 64)};
+
+/* the screen in two bands of 120 rows, each drawn from the whole layout (rows outside the band are clipped) */
+static void band(int32_t top)
+{
+    cv_begin(240, 120, C_BLACK);
+    cv_oy = -top;
+    cv_y0 = 0;
+    cv_y1 = 120;
+}
+
+static void frame(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t fill)
+{
+    cv_rect(x, y, w, h, C_LINE);
+    cv_rect(x + 1, y + 1, w - 2, h - 2, fill);
+}
+
+static void text_c(int32_t cx, int32_t y, const felucca_font_t *f, const char *s, uint16_t c)   /* centred */
+{
+    cv_text(cx - text_w(f, s) / 2, y, f, s, c);
+}
+
+static void header(void)
+{
+    char t[24];
+    if (plat_ms() < ui.msg_until) {
+        int32_t x = cv_text(8, 3, &FONT_B, ui.msg[0], C_WHITE);
+        cv_text(x + 8, 3, &FONT_B, ui.msg[1], C_HI);
+    } else {
+        cv_text(8, 3, &FONT_B, PAGE_NAME[set.page], C_WHITE);
+        key_label(t);
+        text_cat(t, " ");
+        text_cat(t, tun()->shortname);
+        cv_text(232 - text_w(&FONT_XS, t), 6, &FONT_XS, t, C_HI);
+    }
+    cv_rect(0, 23, 240, 1, C_LINE);
+}
+
+static void hole_cell(uint32_t draw, uint32_t h, int32_t y)
+{
+    uint32_t id = draw * 10u + h;
+    int32_t x = 2 + (int32_t)h * 236 / 10, w = 22, nb = bend_max(draw, h), j;
+    int lit = (int)(play.sounding >> id & 1u);
+    int32_t note = lit ? play.note[id] : hole_note(draw, h);   /* a bent hole shows the note it bends to */
+    uint16_t col = draw ? C_DRAW : C_BLOW;
+    char t[4];
+    if (lit)
+        cv_rect(x, y, w, 32, col);
+    else
+        frame(x, y, w, 32, C_BOX);
+    text_c(x + w / 2, y + 3, &FONT_XS, note_name(note), lit ? C_BLACK : C_WHITE);
+    int_text(note / 12 - 1, t);
+    text_c(x + w / 2, y + 16, &FONT_T, t, lit ? C_BLACK : C_DIM);
+    for (j = 0; j < nb; j++)              /* the bends this hole has, as dots; the ones in use filled */
+        cv_rect(x + w / 2 - (nb - 1) * 2 + j * 4 - 1, y + 28, 2, 2,
+                lit ? (j < (int32_t)play.bend[id] ? C_WHITE : C_BLACK) : C_GRAY);
+    if ((uint32_t)hole_note(draw, h) % 12u == root_pc())   /* the position's tonic */
+        cv_rect(x + w - 5, y + 2, 3, 3, lit ? C_BLACK : col);
+}
+
+static void draw_home(void)
+{
+    uint32_t h, i, k;
+    int32_t x, w;
+    char t[48], p[24];
+    for (h = 0; h < 10u; h++) {
+        hole_cell(0, h, 28);
+        int_text((int32_t)h + 1, t);
+        text_c(2 + (int32_t)h * 236 / 10 + 11, 62, &FONT_T, t, C_GRAY);
+        hole_cell(1, h, 76);
+    }
+    t[0] = 0;
+    text_cat(t, "Joue en ");
+    text_cat(t, note_name((int32_t)root_pc()));
+    if (tun()->pos[set.pos].minor)
+        text_cat(t, " m");
+    cv_text(8, 113, &FONT_B, t, C_WHITE);
+    t[0] = 0;
+    text_cat(t, ORD[set.pos]);
+    text_cat(t, " position, ");
+    text_cat(t, tun()->pos[set.pos].mode);
+    cv_text(8, 132, &FONT_XS, t, C_GRAY);
+    /* the keyboard's range, and what the hands are doing */
+    t[0] = 0;
+    text_cat(t, "CLAVIER ");
+    note_text(key_note(0), p);
+    text_cat(t, p);
+    text_cat(t, "-");
+    note_text(key_note(NKEYS - 1u), p);
+    text_cat(t, p);
+    if (play.wah)
+        text_cat(t, "  WAH");
+    if (play.trem)
+        text_cat(t, "  TREM");
+    cv_text(8, 148, &FONT_XS, t, C_AMB);
+    /* the end of the tablature, as much as fits */
+    k = ntab > NTAB ? ntab - NTAB : 0u;
+    for (i = ntab, w = 0; i > k; i--) {
+        uint32_t tk = (i - 1u) % NTAB;
+        int32_t tw;
+        t[0] = tab[tk].id >= 10u ? '-' : '+';
+        int_text((int32_t)(tab[tk].id % 10u) + 1, t + 1);
+        for (h = 0; h < tab[tk].bends; h++)
+            text_cat(t, "'");
+        tw = text_w(&FONT_XS, t) + 6;
+        if (w + tw > 224)
+            break;
+        w += tw;
+    }
+    for (x = 8; i < ntab; i++) {
+        uint32_t tk = i % NTAB;
+        t[0] = tab[tk].id >= 10u ? '-' : '+';
+        int_text((int32_t)(tab[tk].id % 10u) + 1, t + 1);
+        for (h = 0; h < tab[tk].bends; h++)
+            text_cat(t, "'");
+        x = cv_text(x, 164, &FONT_XS, t, tab[tk].id >= 10u ? C_DRAW : C_BLOW) + 6;
+    }
+    /* KNOB 1-4 */
+    for (i = 0; i < 4u; i++) {
+        uint32_t kn = PAGE_KNOB[PG_HOME][i];
+        int32_t bx = 2 + (int32_t)i * 59, f;
+        frame(bx, 182, 56, 50, C_BOX);
+        text_c(bx + 28, 185, &FONT_XS, knob_label(kn), C_GRAY);
+        knob_text(kn, t);
+        if (kn == KN_POS)                /* the mode is on the line above: the tile keeps the number */
+            t[ORD[set.pos][1] == 'r' ? 3 : 2] = 0;
+        text_c(bx + 28, 200, &FONT_B, t, C_WHITE);
+        if ((f = knob_fill(kn, 46)) >= 0) {
+            cv_rect(bx + 5, 224, 46, 3, C_LINE);
+            cv_rect(bx + 5, 224, f, 3, C_HI);
+        }
+    }
+}
+
+static void draw_page(void)              /* a page of four values, one a row */
+{
+    uint32_t i;
+    char t[32];
+    for (i = 0; i < 4u; i++) {
+        uint32_t kn = PAGE_KNOB[set.page][i];
+        int32_t y = 30 + (int32_t)i * 50, f;
+        t[0] = 'K';
+        t[1] = (char)('1' + i);
+        t[2] = ' ';
+        t[3] = 0;
+        text_cat(t, knob_label(kn));
+        cv_text(8, y, &FONT_XS, t, C_GRAY);
+        knob_text(kn, t);
+        cv_text(232 - text_w(&FONT_B, t), y + 12, &FONT_B, t, C_WHITE);
+        if ((f = knob_fill(kn, 224)) >= 0) {
+            cv_rect(8, y + 34, 224, 5, C_LINE);
+            cv_rect(8, y + 34, f, 5, C_HI);
+        }
+    }
+    if (set.page != PG_SETUP) {
+        t[0] = 0;
+        text_cat(t, "SON ");
+        text_cat(t, set.preset < NPRESETS ? PRESET_NAME[set.preset] : "PERSO");
+        text_cat(t, "   EDIT: SUIVANT");
+        cv_text(8, 220, &FONT_XS, t, C_DIM);
+    }
+}
+
+static void draw(void)
+{
+    int32_t top;
+    for (top = 0; top < 240; top += 120) {
+        band(top);
+        header();
+        if (set.page == PG_HOME)
+            draw_home();
+        else
+            draw_page();
+        cv_rect(0, 235, 240, 5, TUN_RGB[set.tuning]);
+        cv_blit(0, (uint32_t)top);
+    }
+}
+
+void app_init(void)
+{
+    const tuning_t *t;
+    uint32_t i;
+    int ok = plat_store_load(OBJ_SETTINGS, &set, sizeof set) == (int)sizeof set && set.magic == SET_MAGIC
+             && set.tuning < NTUN && set.pos < 4u && set.oct >= -2 && set.oct <= 1 && set.page < NPAGES
+             && set.preset <= NPRESETS && set.notation <= 1u;
+    if (ok) {
+        t = &TUN[set.tuning];
+        ok = set.key < t->nkeys;
+        for (i = 0; ok && i < HM_NPARAMS; i++)
+            ok = *param(i) >= PRM[i].lo && *param(i) <= PRM[i].hi;
+    }
+    if (!ok) {
+        set.magic = SET_MAGIC;
+        set.tuning = 0;
+        set.key = 10;                    /* C */
+        set.pos = TUN[0].def_pos;
+        set.oct = octave_for_key();
+        set.page = PG_HOME;
+        set.notation = 0;
+        set.preset = 0;
+        set.p = PRESET[0];
+    }
+    map_build();
+    hm_init(44100.0f);
+    hm_params(&set.p);
+}
+
+void app_ui_init(void)
+{
+    lcd_fill(0, 0, 240, 240, C_BLACK);
+    ui.redraw = 1;
+}
+
+void app_frame(void)
+{
+    uint32_t now = plat_ms();
+    input();
+    demo_run(now);
+    speak();
+    if (ui.msg_until && now >= ui.msg_until) {
+        ui.msg_until = 0;
+        ui.redraw = 1;
+    }
+    if (ui.redraw) {
+        ui.redraw = 0;
+        draw();
+    }
+}
+
+#ifdef PLAT_HOST
+int app_expect(const char *what, int *got)
+{
+    uint32_t id;
+    if (!strcmp(what, "tuning"))
+        *got = set.tuning;
+    else if (!strcmp(what, "key"))
+        *got = set.key;
+    else if (!strcmp(what, "pos"))
+        *got = set.pos;
+    else if (!strcmp(what, "oct"))
+        *got = set.oct;
+    else if (!strcmp(what, "page"))
+        *got = set.page;
+    else if (!strcmp(what, "holes"))
+        *got = (int)play.sounding;
+    else if (!strcmp(what, "note"))
+        *got = play.last_note;
+    else if (!strcmp(what, "dirty"))
+        *got = set_dirty;
+    else if (!strcmp(what, "notation"))
+        *got = set.notation;
+    else if (!strcmp(what, "lit"))           /* the keyboard's lit keys: a hole's own notes */
+        *got = (int)keys_natural;
+    else if (!strcmp(what, "dim"))           /* and the bent ones */
+        *got = (int)keys_bent;
+    else if (!strcmp(what, "bend")) {        /* the deepest bend on the sounding holes */
+        *got = 0;
+        for (id = 0; id < 20u; id++)
+            if ((play.sounding >> id & 1u) && play.bend[id] > *got)
+                *got = play.bend[id];
+    } else
+        return 0;
+    return 1;
+}
+#endif

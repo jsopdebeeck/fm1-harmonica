@@ -1,0 +1,90 @@
+# HARMONICA in the host simulator: ./build.sh --host, then
+#   app/build/host/harmonica_host app/tests/basic.txt app/build/host
+# A C harp (Major Diatonic), the keyboard F3..G5: key 7 is C4 (hole 1 blow)
+wait 600
+shot home.png
+wav play.wav
+# the lit keys: C4 D4 E4 G4 B4 C5 D5 E5 F5 G5 (bits 7 9 11 14 18 19 21 23 24 26)
+expect lit 95177344
+# C4: hole 1 blow
+key 7 down
+wait 300
+expect note 60
+expect holes 1
+key 7 up
+# D5: hole 4 draw
+key 21 down
+wait 300
+expect note 74
+expect holes 8192
+key 21 up
+# Db5: 4 draw bent a half step
+key 20 down
+wait 300
+expect note 73
+expect bend 1
+shot bend.png
+key 20 up
+# Ab4: 3 draw bent a step and a half
+key 15 down
+wait 300
+expect note 68
+expect bend 3
+key 15 up
+# Eb4: no hole has it (a dark key)
+key 10 down
+wait 100
+expect holes 0
+key 10 up
+wait 300
+wavstop
+# the tuning, the key, the position, the octave
+turn ALGO 1
+wait 50
+expect tuning 1
+expect key 4
+turn PRESET 2
+wait 50
+expect key 6
+tap SEL
+expect pos 2
+shot melody.png
+tap OCT-
+expect oct -1
+# the pages
+tap ENV
+expect page 1
+turn K2 3
+wait 50
+shot timbre.png
+tap GLO
+expect page 4
+shot setup.png
+tap HOME
+expect page 0
+# HOME again: the notes by letter (C D E), then back to Do Re Mi
+tap HOME
+wait 30
+expect notation 1
+shot letters.png
+tap HOME
+wait 30
+expect notation 0
+shot latin.png
+tap HOME
+expect notation 1
+expect dirty 1
+tap SAVE
+wait 30
+expect dirty 0
+reboot
+wait 600
+expect tuning 1
+expect oct -1
+expect notation 1
+# the lick
+tap PLAY
+wait 1500
+shot lick.png
+wait 2500
+expect holes 0

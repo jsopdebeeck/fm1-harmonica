@@ -1,0 +1,16 @@
+# HARMONICA's build settings (fm1-base's tools/build.py: ./build.sh)
+name = "HARMONICA"             # the build's files: harmonica.fwsc
+id_prefix = "FM-1_47"          # package identity: dev FM-1_4700, releases FM-1_47XXYYZZ
+usb_manufacturer = "fm1-harmonica"
+usb_product = "HARMONICA FM-1"
+ble = false                    # no radio: USB-MIDI only
+usb_audio_in = true            # the harmonica recordable over USB
+usb_audio_out = false
+words = "words.tsv"
+include = ["dsp"]
+o2 = ["dsp/harmo.c", "dsp/hm_samples.c"]   # the voice at -O2, and its samples (tools/samples.py)
+# the site
+tagline = "A 10-hole harmonica for the FM-1"
+repo = ""
+licence = "MPL-2.0"
+credits = "Built on fm1-base and felucca-bsp, from Felucca by Leo Kuroshita (Hügelton Instruments). The harmonica samples: FluidR3_GM by Frank Wen (MIT)."
