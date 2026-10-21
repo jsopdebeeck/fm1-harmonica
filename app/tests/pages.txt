@@ -1,0 +1,16 @@
+# the value pages, for their look: ./build.sh --host, then
+#   app/build/host/harmonica_host app/tests/pages.txt app/build/host
+wait 600
+tap ENV
+wait 50
+shot page-tone.png
+tap LFO
+wait 50
+shot page-breath.png
+tap FX
+wait 50
+shot page-amp.png
+tap GLO
+turn ALGO 3
+wait 1500
+shot page-setup.png

@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 /* HARMONICA: a 10-hole diatonic harmonica on the FM-1. The keys are a piano: each plays its own pitch from the hole
  * that has it, blown or drawn, or bent down to it. The keys' lights (one colour, two brightnesses) tell which: a
- * blown note bright, a drawn one dim; a bent note's key stays dark but plays. PLAY plays a lick, SEL picks the next
- * one. ALGORITHM picks the tuning, PRESET the harmonica's key, SELECT and the page buttons (HOME ENV LFO FX GLO) the
- * page whose values KNOB 1-4 set (the position: KNOB 1 on the home page); HOME on
+ * blown note bright, a drawn one dim; a bent note's key stays dark but plays. PLAY loops a lick until PLAY again,
+ * SELECT (or SEL) picks it. ALGORITHM picks the tuning, PRESET the harmonica's key, the page buttons (HOME ENV LFO FX GLO) the page
+ * whose values KNOB 1-4 set (the position: KNOB 1 on the home page); HOME on
  * the home page switches the notes' names between Do Re Mi and C D E; ARP held closes the hands (wah), SEQ held is
  * the hand's tremolo. Part of the unity build (device/unity.c, host/plat_host.c), after the platform: gfx.c and
  * announce.c are in scope. */
@@ -53,6 +53,9 @@ static const tuning_t TUN[] = {
      K_HARMIN, NK(K_HARMIN), {{"minor", 0, 1}, {"major", 3, 0}, {"dominant", 10, 0}, {"dorian", 5, 1}}},
 };
 #define NTUN 4u
+enum { T_MAJOR, T_MELODY, T_NATMIN, T_HARMIN };
+/* each tuning's colour, as Lee Oskar's labels: a band along the bottom of the screen, and the licks' names */
+static const uint16_t TUN_RGB[NTUN] = {RGB(214, 76, 52), RGB(90, 186, 240), RGB(146, 196, 66), RGB(240, 222, 64)};
 
 /* the two notations, HOME on the home page switching: Latin (Do Re Mi) or letters (C D E) */
 static const char *const NOTE_LATIN[12] = {"Do", "Do#", "Re", "Mib", "Mi", "Fa", "Fa#", "Sol", "Lab", "La", "Sib",
@@ -311,6 +314,7 @@ static struct {
 
 static struct {
     char msg[2][24];                     /* a short message over the header */
+    uint16_t msg_rgb;                    /* its second part's colour (0: the theme's) */
     uint32_t msg_until;
     uint32_t keys, btn;                  /* held at the last input */
     uint8_t redraw;
@@ -368,7 +372,8 @@ static void holes_off(void)              /* before the notes move (tuning, key, 
         hole_off(id);
 }
 
-/* PLAY: the licks, SEL (or KNOB 3 on the home page) the next one. Each step is one hole or a chord of up to three,
+/* PLAY: the licks, played over and over until PLAY again; SELECT, SEL or KNOB 3 on the home page picks one. Each is
+ * written for one of the tunings, and its name shows in that tuning's colour. Each step is one hole or a chord of up to three,
  * as a tab writes them (BL(4): +4, DR(3): -3), held ms; the first hole bends as far as the step asks and the hole
  * allows. They are written for a Richter harmonica and play on whichever is chosen. The two songs are in the public
  * domain (Stephen Foster, 1848; a traditional spiritual). */
@@ -407,13 +412,30 @@ static const lstep_t L_SAINTS[] = {  /* When the Saints, the first line */
 static const lstep_t L_SHAKE[] = {   /* 4 and 5 draw in turn, fast: the warble */
     {{DR(4)}, 0, 90}, {{DR(5)}, 0, 90}, {{DR(4)}, 0, 90}, {{DR(5)}, 0, 90}, {{DR(4)}, 0, 90}, {{DR(5)}, 0, 90},
     {{DR(4)}, 0, 90}, {{DR(5)}, 0, 90}, {{DR(4)}, 0, 90}, {{DR(5)}, 0, 90}, {{DR(4)}, 1, 300}, {{DR(4)}, 0, 600}};
+static const lstep_t L_MELODY[] = {   /* Melody Maker: the major scale from 2 draw, no bend, up and down */
+    {{DR(2)}, 0, 260}, {{BL(3)}, 0, 260}, {{DR(3)}, 0, 260}, {{BL(4)}, 0, 260}, {{DR(4)}, 0, 260},
+    {{BL(5)}, 0, 260}, {{DR(5)}, 0, 260}, {{BL(6)}, 0, 520}, {{DR(5)}, 0, 260}, {{BL(5)}, 0, 260},
+    {{DR(4)}, 0, 260}, {{BL(4)}, 0, 260}, {{DR(3)}, 0, 260}, {{BL(3)}, 0, 260}, {{DR(2)}, 0, 700}};
+static const lstep_t L_MINOR[] = {    /* Natural Minor: the minor scale from 2 draw (3 draw bent for its 2nd) */
+    {{DR(2)}, 0, 280}, {{DR(3)}, 1, 280}, {{DR(3)}, 0, 280}, {{BL(4)}, 0, 280}, {{DR(4)}, 0, 280},
+    {{BL(5)}, 0, 280}, {{DR(5)}, 0, 280}, {{BL(6)}, 0, 560}, {{DR(5)}, 0, 280}, {{BL(5)}, 0, 280},
+    {{DR(4)}, 0, 560}, {{DR(3)}, 0, 280}, {{DR(2)}, 0, 800}};
+static const lstep_t L_EASTERN[] = {  /* Harmonic Minor: the harmonic minor scale from 4 blow, and its turn */
+    {{BL(4)}, 0, 260}, {{DR(4)}, 0, 260}, {{BL(5)}, 0, 260}, {{DR(5)}, 0, 260}, {{BL(6)}, 0, 260},
+    {{DR(6)}, 0, 520}, {{DR(7)}, 0, 520}, {{BL(7)}, 0, 520}, {{DR(7)}, 0, 260}, {{DR(6)}, 0, 260},
+    {{DR(7)}, 0, 260}, {{DR(6)}, 0, 260}, {{BL(6)}, 0, 260}, {{DR(5)}, 0, 260}, {{BL(5)}, 0, 260},
+    {{DR(4)}, 0, 260}, {{BL(4)}, 0, 800}};
 static const struct {
     const char *name;
     const lstep_t *steps;
     uint8_t n;
-} LICKS[] = {{"BLUES", L_BLUES, NK(L_BLUES)}, {"TRAIN", L_TRAIN, NK(L_TRAIN)}, {"WAIL", L_WAIL, NK(L_WAIL)},
-             {"SCALE", L_SCALE, NK(L_SCALE)}, {"BENDS", L_BENDS, NK(L_BENDS)}, {"FOLK", L_FOLK, NK(L_FOLK)},
-             {"SAINTS", L_SAINTS, NK(L_SAINTS)}, {"SHAKE", L_SHAKE, NK(L_SHAKE)}};
+    uint8_t tuning;                      /* the harmonica it is written for (T_*) */
+} LICKS[] = {{"BLUES", L_BLUES, NK(L_BLUES), T_MAJOR},     {"TRAIN", L_TRAIN, NK(L_TRAIN), T_MAJOR},
+             {"WAIL", L_WAIL, NK(L_WAIL), T_MAJOR},        {"SCALE", L_SCALE, NK(L_SCALE), T_MAJOR},
+             {"BENDS", L_BENDS, NK(L_BENDS), T_MAJOR},     {"FOLK", L_FOLK, NK(L_FOLK), T_MAJOR},
+             {"SAINTS", L_SAINTS, NK(L_SAINTS), T_MAJOR},  {"SHAKE", L_SHAKE, NK(L_SHAKE), T_MAJOR},
+             {"MELODY", L_MELODY, NK(L_MELODY), T_MELODY}, {"MINOR", L_MINOR, NK(L_MINOR), T_NATMIN},
+             {"EASTERN", L_EASTERN, NK(L_EASTERN), T_HARMIN}};
 #define NLICKS (uint8_t)(sizeof LICKS / sizeof LICKS[0])
 static struct {
     uint8_t on, step, sounding;
@@ -447,9 +469,9 @@ static void demo_run(uint32_t now)
         demo.next = now + 30u;
         return;
     }
-    if (demo.step >= LICKS[set.lick].n) {
-        demo.on = 0;
-        ui.redraw = 1;
+    if (demo.step >= LICKS[set.lick].n) {   /* the end: again from the start, after a breath, until PLAY */
+        demo.step = 0;
+        demo.next = now + 400u;
         return;
     }
     demo_step(1);
@@ -486,6 +508,7 @@ void app_say(const char *a, const char *b)
         ui.msg[1][i] = b[i];
     ui.msg[1][i] = 0;
     ui.msg_until = plat_ms() + 1300u;
+    ui.msg_rgb = 0;
     ui.redraw = 1;
     if (ann_on()) {                          /* and to a screen reader (announce.c, fm1-reader) */
         t[0] = 0;
@@ -601,6 +624,7 @@ static void lick_step(int32_t d)         /* the next lick (or the one before); p
     changed();
     int_text(set.lick + 1, t + 5);
     app_say(t, LICKS[set.lick].name);
+    ui.msg_rgb = TUN_RGB[LICKS[set.lick].tuning];
     if (playing)
         demo_start();
 }
@@ -706,6 +730,7 @@ static void button(uint32_t b)
         else {
             demo_start();
             app_say("PLAY", LICKS[set.lick].name);
+            ui.msg_rgb = TUN_RGB[LICKS[set.lick].tuning];
         }
     } else if (b == B_REC) {
         ntab = 0;
@@ -743,10 +768,9 @@ static void input(void)
     for (k = 0; k < NE; k++) {
         if ((e = plat_enc((int)k)) == 0)
             continue;
-        if (k == EN_SELECT) {
-            set.page = (uint8_t)((set.page + NPAGES + (uint32_t)(e > 0 ? 1 : NPAGES - 1)) % NPAGES);
-            ui.redraw = 1;
-        } else if (k == EN_ALGO)
+        if (k == EN_SELECT)
+            lick_step(e > 0 ? 1 : -1);
+        else if (k == EN_ALGO)
             tuning_step(e);
         else if (k == EN_PRESET)
             key_step(e > 0 ? 1 : -1);
@@ -773,8 +797,6 @@ void app_input_only(void) { input(); }
 #define C_BLOW RGB(232, 160, 64)
 #define C_DRAW RGB(96, 176, 220)
 #define C_BOX RGB(18, 22, 26)
-/* each tuning's colour, as Lee Oskar's labels: a band along the bottom of the screen */
-static const uint16_t TUN_RGB[NTUN] = {RGB(214, 76, 52), RGB(90, 186, 240), RGB(146, 196, 66), RGB(240, 222, 64)};
 
 /* the screen in two bands of 120 rows, each drawn from the whole layout (rows outside the band are clipped) */
 static void band(int32_t top)
@@ -801,7 +823,7 @@ static void header(void)
     char t[24];
     if (plat_ms() < ui.msg_until) {
         int32_t x = cv_text(8, 3, &FONT_B, ui.msg[0], C_WHITE);
-        cv_text(x + 8, 3, &FONT_B, ui.msg[1], C_HI);
+        cv_text(x + 8, 3, &FONT_B, ui.msg[1], ui.msg_rgb ? ui.msg_rgb : C_HI);
     } else {
         cv_text(8, 3, &FONT_B, PAGE_NAME[set.page], C_WHITE);
         key_label(t);
@@ -900,7 +922,8 @@ static void draw_home(void)
         knob_text(kn, t);
         if (kn == KN_POS)                /* the mode is on the line above: the tile keeps the number */
             t[3] = 0;
-        text_c(bx + 28, 200, &FONT_B, t, C_WHITE);
+        text_c(bx + 28, text_w(&FONT_B, t) > 50 ? 202 : 200, text_w(&FONT_B, t) > 50 ? &FONT_XS : &FONT_B, t,
+               kn == KN_LICK ? TUN_RGB[LICKS[set.lick].tuning] : C_WHITE);   /* a long value in the small font */
         if ((f = knob_fill(kn, 46)) >= 0) {
             cv_rect(bx + 5, 224, 46, 3, C_LINE);
             cv_rect(bx + 5, 224, f, 3, C_HI);
@@ -908,24 +931,30 @@ static void draw_home(void)
     }
 }
 
-static void draw_page(void)              /* a page of four values, one a row */
+static void draw_page(void)              /* a page of four values, one a row: name and value large, a thick bar */
 {
     uint32_t i;
-    char t[32];
+    char t[32], v[32];
     for (i = 0; i < 4u; i++) {
         uint32_t kn = PAGE_KNOB[set.page][i];
-        int32_t y = 30 + (int32_t)i * 50, f;
+        int32_t y = 28 + (int32_t)i * 48, f, x;
         t[0] = 'K';
         t[1] = (char)('1' + i);
-        t[2] = ' ';
-        t[3] = 0;
-        text_cat(t, knob_label(kn));
-        cv_text(8, y, &FONT_XS, t, C_GRAY);
-        knob_text(kn, t);
-        cv_text(232 - text_w(&FONT_B, t), y + 12, &FONT_B, t, C_WHITE);
+        t[2] = 0;
+        x = cv_text(8, y + 5, &FONT_XS, t, C_DIM) + 6;
+        cv_text(x, y + 3, &FONT_B, knob_label(kn), C_AMB);
+        knob_text(kn, v);
+        {   /* the large font has capitals only: a key ("Cm", "Eb") keeps its case in the bold one */
+            const felucca_font_t *vf = kn == KN_KEY ? &FONT_B : &FONT_M;
+            int32_t vy = kn == KN_KEY ? y + 3 : y;
+            if (x + text_w(&FONT_B, knob_label(kn)) + 10 + text_w(vf, v) > 232)
+                vy += 20;                /* too long beside its name (a tuning): under it, a page has no bar there */
+            cv_text(232 - text_w(vf, v), vy, vf, v, C_WHITE);
+        }
         if ((f = knob_fill(kn, 224)) >= 0) {
-            cv_rect(8, y + 34, 224, 5, C_LINE);
-            cv_rect(8, y + 34, f, 5, C_HI);
+            cv_rect(8, y + 29, 224, 9, C_DIM);
+            cv_rect(8, y + 29, f, 9, C_HI);
+            cv_rect(8 + (f > 2 ? f - 2 : 0), y + 27, 2, 13, C_WHITE);   /* where the value sits */
         }
     }
     if (set.page != PG_SETUP) {
@@ -933,7 +962,7 @@ static void draw_page(void)              /* a page of four values, one a row */
         text_cat(t, "SOUND ");
         text_cat(t, set.preset < NPRESETS ? PRESET_NAME[set.preset] : "CUSTOM");
         text_cat(t, "   EDIT: NEXT");
-        cv_text(8, 220, &FONT_XS, t, C_DIM);
+        cv_text(8, 219, &FONT_XS, t, C_GRAY);
     }
 }
 

@@ -4,6 +4,7 @@ wait 600
 wav demo-samples.wav
 tap PLAY
 wait 3200
+tap PLAY
 # the scale of C, hole 4 blow to hole 7 blow (keys 19 21 23 24 26)
 key 19 down
 wait 400
@@ -48,4 +49,6 @@ wait 30
 wav demo-fm.wav
 tap PLAY
 wait 3200
+tap PLAY
+wait 300
 wavstop
