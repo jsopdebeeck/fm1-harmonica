@@ -8,6 +8,7 @@ usb_audio_in = true            # the harmonica recordable over USB
 usb_audio_out = false
 words = "words.tsv"
 include = ["dsp"]
+gen = ["tools/gen_licks.py licks.tab --out {gen}/licks.h"]   # the examples (licks.tab)
 o2 = ["dsp/harmo.c", "dsp/hm_samples.c"]   # the voice at -O2, and its samples (tools/samples.py)
 # the site
 tagline = "A 10-hole harmonica for the FM-1"

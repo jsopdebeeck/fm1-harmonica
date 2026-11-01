@@ -2,24 +2,24 @@
 #   app/build/host/harmonica_host app/tests/fit.txt app/build/host
 wait 600
 expect oct 0
-# BLUES (2 to 4 draw, G4..D5) fits: no move
+# BLUES goes from 2 draw to 6 draw, G4..A5: the keys move up an octave (F4..G6)
 expect lick 0
 tap PLAY
 wait 200
-expect oct 0
+expect oct 1
 tap PLAY
-# FOLK goes up to 6 draw, A5: the keys move up an octave (F4..G6)
+# FOLK (C5..A5) fits there: it stays
 turn SELECT 7
 wait 800
 expect lick 7
 expect oct 1
 shot fit-folk.png
-# SCALE (4 blow to 7 blow, C5..C6) fits there too: it stays
+# SCALE (4 blow to 9 blow, C5..G6) fits too
 turn SELECT -3
 wait 600
 expect lick 4
 expect oct 1
-# BENDS goes down to 1 draw bent, Db4: back down
+# BENDS goes down to 1 draw bent, Db4: back down an octave
 turn SELECT 1
 wait 300
 expect lick 5

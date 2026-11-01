@@ -96,13 +96,13 @@ static const hm_params_t PRESET[NPRESETS] = {
 typedef struct {
     uint32_t magic;
     uint8_t tuning, key, pos, preset;    /* preset: NPRESETS = changed by hand */
-    int8_t oct;                          /* the keyboard's octave, -2 .. +1: key 0 is F3 + 12 * oct */
+    int8_t oct;                          /* the keyboard's octave, -2 .. +2: key 0 is F3 + 12 * oct */
     uint8_t page;
     uint8_t notation;                    /* 0 Latin (Do Re Mi), 1 letters (C D E), the default */
     uint8_t lick;                        /* the lick PLAY plays */
     uint8_t lights;                      /* the drawn notes' lights: 1 low, 2 high */
     uint8_t keymode;                     /* 0 PIANO (each key its note), 1 HOLES (white blow, black draw) */
-    uint8_t mouth;                       /* holes the mouth covers: 1 alone, 2 with the next up, 3 with both sides */
+    uint8_t mouth;                       /* holes the mouth covers: 1 alone, 2 with the next up, 3 with both sides, 4 with one below and two above */
     uint8_t rsv[1];
     hm_params_t p;
 } settings_t;
@@ -411,145 +411,16 @@ static void play_keys_reset(void)        /* the keys' state forgotten (the mode 
     bend_keys = 0;
 }
 
-/* PLAY: the licks, played over and over until PLAY again; SELECT, SEL or KNOB 3 on the home page picks one. Each is
- * written for one of the tunings, and its name shows in that tuning's colour. Each step is one hole or a chord of up to three,
- * as a tab writes them (BL(4): +4, DR(3): -3), held ms; the first hole bends as far as the step asks and the hole
- * allows. They play on whichever harmonica is chosen; the songs are in the public domain (Oh! Susanna, Stephen
- * Foster, 1848; When the Saints and Mary Had a Little Lamb, traditional; Amazing Grace, 1779 and 1829; Ode to Joy,
- * Beethoven, 1824; Jingle Bells, 1857; Twinkle Twinkle, traditional). */
-#define BL(h) (h)
-#define DR(h) (10 + (h))
+/* PLAY: the examples, played over and over until PLAY again; SELECT picks one. licks.tab holds them, as tabs:
+ * tools/gen_licks.py makes licks.h. Each is written for one of the tunings, and its name shows in that tuning's
+ * colour. Each step is one hole or a chord of up to four neighbours, or a rest, held ms; its first hole bends as far
+ * as the step asks and the hole allows. */
 typedef struct {
-    uint8_t hole[3];                     /* id + 1 (blow 1..10, draw 11..20), 0: none (all three: a rest) */
+    uint8_t hole[4];                     /* id + 1 (blow 1..10, draw 11..20), 0: none (all four: a rest) */
     uint8_t bend;
     uint16_t ms;
 } lstep_t;
-static const lstep_t L_BLUES[] = {{{DR(2)}, 0, 340}, {{DR(3)}, 1, 340}, {{DR(4)}, 0, 300}, {{DR(4)}, 1, 260},
-                                  {{DR(4)}, 0, 300}, {{BL(4)}, 0, 320}, {{DR(3)}, 1, 340}, {{DR(2)}, 0, 900}};
-static const lstep_t L_TRAIN[] = {   /* the chug, draw and blow chords, then the whistle */
-    {{DR(1), DR(2), DR(3)}, 0, 150}, {{BL(1), BL(2), BL(3)}, 0, 150}, {{DR(1), DR(2), DR(3)}, 0, 150},
-    {{BL(1), BL(2), BL(3)}, 0, 150}, {{DR(1), DR(2), DR(3)}, 0, 150}, {{BL(1), BL(2), BL(3)}, 0, 150},
-    {{DR(1), DR(2), DR(3)}, 0, 150}, {{BL(1), BL(2), BL(3)}, 0, 150}, {{DR(4), DR(5)}, 1, 700},
-    {{DR(4), DR(5)}, 0, 500}};
-static const lstep_t L_WAIL[] = {{{DR(4)}, 1, 250}, {{DR(4)}, 0, 350}, {{BL(5)}, 0, 300}, {{DR(5)}, 0, 300},
-                                 {{BL(6)}, 0, 350}, {{DR(5)}, 0, 250}, {{BL(5)}, 0, 250}, {{DR(4)}, 0, 700}};
-static const lstep_t L_SCALE[] = {   /* the major scale in 1st position, up and down */
-    {{BL(4)}, 0, 260}, {{DR(4)}, 0, 260}, {{BL(5)}, 0, 260}, {{DR(5)}, 0, 260}, {{BL(6)}, 0, 260},
-    {{DR(6)}, 0, 260}, {{DR(7)}, 0, 260}, {{BL(7)}, 0, 520}, {{DR(7)}, 0, 260}, {{DR(6)}, 0, 260},
-    {{BL(6)}, 0, 260}, {{DR(5)}, 0, 260}, {{BL(5)}, 0, 260}, {{DR(4)}, 0, 260}, {{BL(4)}, 0, 700}};
-static const lstep_t L_BENDS[] = {   /* 3 draw down a half step at a time, and back; then 2 and 1 */
-    {{DR(3)}, 0, 400}, {{DR(3)}, 1, 400}, {{DR(3)}, 2, 400}, {{DR(3)}, 3, 600}, {{DR(3)}, 2, 300},
-    {{DR(3)}, 1, 300}, {{DR(3)}, 0, 500}, {{DR(2)}, 2, 500}, {{DR(2)}, 0, 400}, {{DR(1)}, 1, 400}, {{DR(1)}, 0, 700}};
-static const lstep_t L_FOLK[] = {    /* Oh! Susanna, the first line */
-    {{BL(4)}, 0, 220}, {{DR(4)}, 0, 220}, {{BL(5)}, 0, 440}, {{BL(6)}, 0, 440}, {{BL(6)}, 0, 330},
-    {{DR(6)}, 0, 110}, {{BL(6)}, 0, 440}, {{BL(5)}, 0, 440}, {{BL(4)}, 0, 330}, {{DR(4)}, 0, 110},
-    {{BL(5)}, 0, 440}, {{BL(5)}, 0, 440}, {{DR(4)}, 0, 440}, {{BL(4)}, 0, 440}, {{DR(4)}, 0, 900}};
-static const lstep_t L_SAINTS[] = {  /* When the Saints, the first line */
-    {{BL(4)}, 0, 300}, {{BL(5)}, 0, 300}, {{DR(5)}, 0, 300}, {{BL(6)}, 0, 1100}, {{BL(4)}, 0, 300},
-    {{BL(5)}, 0, 300}, {{DR(5)}, 0, 300}, {{BL(6)}, 0, 1100}, {{BL(4)}, 0, 300}, {{BL(5)}, 0, 300},
-    {{DR(5)}, 0, 300}, {{BL(6)}, 0, 600}, {{BL(5)}, 0, 600}, {{BL(4)}, 0, 600}, {{BL(5)}, 0, 600},
-    {{DR(4)}, 0, 1000}};
-static const lstep_t L_SHAKE[] = {   /* 4 and 5 draw in turn, fast: the warble */
-    {{DR(4)}, 0, 90}, {{DR(5)}, 0, 90}, {{DR(4)}, 0, 90}, {{DR(5)}, 0, 90}, {{DR(4)}, 0, 90}, {{DR(5)}, 0, 90},
-    {{DR(4)}, 0, 90}, {{DR(5)}, 0, 90}, {{DR(4)}, 0, 90}, {{DR(5)}, 0, 90}, {{DR(4)}, 1, 300}, {{DR(4)}, 0, 600}};
-static const lstep_t L_MELODY[] = {   /* Melody Maker: the major scale from 2 draw, no bend, up and down */
-    {{DR(2)}, 0, 260}, {{BL(3)}, 0, 260}, {{DR(3)}, 0, 260}, {{BL(4)}, 0, 260}, {{DR(4)}, 0, 260},
-    {{BL(5)}, 0, 260}, {{DR(5)}, 0, 260}, {{BL(6)}, 0, 520}, {{DR(5)}, 0, 260}, {{BL(5)}, 0, 260},
-    {{DR(4)}, 0, 260}, {{BL(4)}, 0, 260}, {{DR(3)}, 0, 260}, {{BL(3)}, 0, 260}, {{DR(2)}, 0, 700}};
-static const lstep_t L_MINOR[] = {    /* Natural Minor: the minor scale from 2 draw (3 draw bent for its 2nd) */
-    {{DR(2)}, 0, 280}, {{DR(3)}, 1, 280}, {{DR(3)}, 0, 280}, {{BL(4)}, 0, 280}, {{DR(4)}, 0, 280},
-    {{BL(5)}, 0, 280}, {{DR(5)}, 0, 280}, {{BL(6)}, 0, 560}, {{DR(5)}, 0, 280}, {{BL(5)}, 0, 280},
-    {{DR(4)}, 0, 560}, {{DR(3)}, 0, 280}, {{DR(2)}, 0, 800}};
-static const lstep_t L_EASTERN[] = {  /* Harmonic Minor: the harmonic minor scale from 4 blow, and its turn */
-    {{BL(4)}, 0, 260}, {{DR(4)}, 0, 260}, {{BL(5)}, 0, 260}, {{DR(5)}, 0, 260}, {{BL(6)}, 0, 260},
-    {{DR(6)}, 0, 520}, {{DR(7)}, 0, 520}, {{BL(7)}, 0, 520}, {{DR(7)}, 0, 260}, {{DR(6)}, 0, 260},
-    {{DR(7)}, 0, 260}, {{DR(6)}, 0, 260}, {{BL(6)}, 0, 260}, {{DR(5)}, 0, 260}, {{BL(5)}, 0, 260},
-    {{DR(4)}, 0, 260}, {{BL(4)}, 0, 800}};
-static const lstep_t L_AMAZING[] = { /* Amazing Grace (the tune New Britain, 1829), the first line */
-    {{BL(3)}, 0, 330}, {{BL(4)}, 0, 660}, {{BL(5)}, 0, 165}, {{BL(4)}, 0, 165}, {{BL(5)}, 0, 660},
-    {{DR(4)}, 0, 330}, {{BL(4)}, 0, 660}, {{DR(3)}, 2, 330}, {{BL(3)}, 0, 900}};
-static const lstep_t L_MARY[] = {    /* Mary Had a Little Lamb */
-    {{BL(5)}, 0, 300}, {{DR(4)}, 0, 300}, {{BL(4)}, 0, 300}, {{DR(4)}, 0, 300}, {{BL(5)}, 0, 300},
-    {{BL(5)}, 0, 300}, {{BL(5)}, 0, 600}, {{DR(4)}, 0, 300}, {{DR(4)}, 0, 300}, {{DR(4)}, 0, 600},
-    {{BL(5)}, 0, 300}, {{BL(6)}, 0, 300}, {{BL(6)}, 0, 800}};
-static const lstep_t L_BOOGIE[] = {  /* a boogie line in 2nd position, and its chord */
-    {{DR(2)}, 0, 220}, {{DR(3)}, 0, 220}, {{DR(4)}, 0, 220}, {{BL(5)}, 0, 220}, {{DR(5)}, 0, 220},
-    {{BL(5)}, 0, 220}, {{DR(4)}, 0, 220}, {{DR(3)}, 0, 220}, {{DR(1), DR(2), DR(3)}, 0, 600}};
-static const lstep_t L_ODE[] = {     /* Melody Maker: Ode to Joy (Beethoven), the first line, in 2nd position */
-    {{DR(3)}, 0, 300}, {{DR(3)}, 0, 300}, {{BL(4)}, 0, 300}, {{DR(4)}, 0, 300}, {{DR(4)}, 0, 300},
-    {{BL(4)}, 0, 300}, {{DR(3)}, 0, 300}, {{BL(3)}, 0, 300}, {{DR(2)}, 0, 300}, {{DR(2)}, 0, 300},
-    {{BL(3)}, 0, 300}, {{DR(3)}, 0, 300}, {{DR(3)}, 0, 450}, {{BL(3)}, 0, 150}, {{BL(3)}, 0, 700}};
-static const lstep_t L_DARK[] = {    /* Natural Minor: a minor line from 2 draw, down again */
-    {{DR(2)}, 0, 300}, {{DR(3)}, 0, 300}, {{BL(4)}, 0, 300}, {{DR(4)}, 0, 300}, {{BL(5)}, 0, 600},
-    {{DR(4)}, 0, 300}, {{BL(4)}, 0, 300}, {{DR(3)}, 0, 300}, {{DR(2)}, 0, 800}};
-static const lstep_t L_DANCE[] = {   /* Harmonic Minor: down the scale from 6 blow, fast, to the minor chord */
-    {{BL(6)}, 0, 180}, {{DR(6)}, 0, 180}, {{DR(7)}, 0, 180}, {{BL(7)}, 0, 360}, {{DR(7)}, 0, 180},
-    {{DR(6)}, 0, 180}, {{BL(6)}, 0, 180}, {{DR(5)}, 0, 180}, {{BL(5)}, 0, 180}, {{DR(4)}, 0, 180},
-    {{BL(4)}, 0, 360}, {{BL(4), BL(5), BL(6)}, 0, 700}};
-static const lstep_t L_CROSS[] = {   /* the blues scale in 2nd position, its blue notes bent (3 draw, 4 draw) */
-    {{DR(2)}, 0, 300}, {{DR(3)}, 1, 300}, {{BL(4)}, 0, 300}, {{DR(4)}, 1, 300}, {{DR(4)}, 0, 300},
-    {{DR(5)}, 0, 300}, {{BL(6)}, 0, 600}, {{DR(5)}, 0, 300}, {{DR(4)}, 0, 300}, {{DR(4)}, 1, 300},
-    {{BL(4)}, 0, 300}, {{DR(3)}, 1, 300}, {{DR(2)}, 0, 800}};
-static const lstep_t L_CHORDS[] = {   /* the I and V chords, low then middle */
-    {{BL(1), BL(2), BL(3)}, 0, 450}, {{DR(1), DR(2), DR(3)}, 0, 450}, {{BL(1), BL(2), BL(3)}, 0, 450},
-    {{DR(1), DR(2), DR(3)}, 0, 450}, {{BL(4), BL(5), BL(6)}, 0, 450}, {{DR(4), DR(5), DR(6)}, 0, 450},
-    {{BL(4), BL(5), BL(6)}, 0, 900}};
-static const lstep_t L_DRONE[] = {   /* low bends: 1 draw a half step, 2 draw a whole step */
-    {{DR(1)}, 0, 500}, {{DR(1)}, 1, 500}, {{DR(1)}, 0, 400}, {{DR(2)}, 0, 400}, {{DR(2)}, 2, 600},
-    {{DR(2)}, 1, 300}, {{DR(2)}, 0, 400}, {{DR(1)}, 0, 900}};
-static const lstep_t L_HIGH[] = {   /* the blow bends at the top: 8, 9, 10 blow */
-    {{BL(8)}, 0, 400}, {{BL(8)}, 1, 400}, {{BL(8)}, 0, 300}, {{BL(9)}, 0, 400}, {{BL(9)}, 1, 400},
-    {{BL(9)}, 0, 300}, {{BL(10)}, 0, 400}, {{BL(10)}, 2, 600}, {{BL(10)}, 1, 300}, {{BL(10)}, 0, 900}};
-static const lstep_t L_JINGLE[] = {   /* Jingle Bells, the chorus's first line */
-    {{BL(5)}, 0, 250}, {{BL(5)}, 0, 250}, {{BL(5)}, 0, 500}, {{BL(5)}, 0, 250}, {{BL(5)}, 0, 250},
-    {{BL(5)}, 0, 500}, {{BL(5)}, 0, 250}, {{BL(6)}, 0, 250}, {{BL(4)}, 0, 375}, {{DR(4)}, 0, 125},
-    {{BL(5)}, 0, 900}};
-static const lstep_t L_TWINKLE[] = {   /* Twinkle Twinkle Little Star, the first line, in 1st position */
-    {{BL(4)}, 0, 300}, {{BL(4)}, 0, 300}, {{BL(6)}, 0, 300}, {{BL(6)}, 0, 300}, {{DR(6)}, 0, 300},
-    {{DR(6)}, 0, 300}, {{BL(6)}, 0, 600}, {{DR(5)}, 0, 300}, {{DR(5)}, 0, 300}, {{BL(5)}, 0, 300},
-    {{BL(5)}, 0, 300}, {{DR(4)}, 0, 300}, {{DR(4)}, 0, 300}, {{BL(4)}, 0, 800}};
-static const lstep_t L_STAR[] = {   /* Twinkle Twinkle in 2nd position, no bend */
-    {{DR(2)}, 0, 300}, {{DR(2)}, 0, 300}, {{DR(4)}, 0, 300}, {{DR(4)}, 0, 300}, {{BL(5)}, 0, 300},
-    {{BL(5)}, 0, 300}, {{DR(4)}, 0, 600}, {{BL(4)}, 0, 300}, {{BL(4)}, 0, 300}, {{DR(3)}, 0, 300},
-    {{DR(3)}, 0, 300}, {{BL(3)}, 0, 300}, {{BL(3)}, 0, 300}, {{DR(2)}, 0, 800}};
-static const lstep_t L_COUNTRY[] = {   /* a country line in 2nd position, ending on two holes */
-    {{DR(2)}, 0, 250}, {{BL(3)}, 0, 250}, {{DR(3)}, 0, 250}, {{DR(4)}, 0, 500}, {{BL(5)}, 0, 250},
-    {{DR(4)}, 0, 250}, {{DR(3)}, 0, 250}, {{BL(3)}, 0, 250}, {{DR(2)}, 0, 500}, {{DR(2), DR(3)}, 0, 700}};
-static const lstep_t L_SOUL[] = {   /* a minor blues line from 2 draw, 4 draw bent for its blue note */
-    {{DR(2)}, 0, 300}, {{DR(3)}, 0, 300}, {{BL(4)}, 0, 300}, {{DR(4)}, 1, 300}, {{DR(4)}, 0, 300},
-    {{BL(5)}, 0, 300}, {{DR(4)}, 0, 300}, {{BL(4)}, 0, 300}, {{DR(3)}, 0, 300}, {{DR(2)}, 0, 900}};
-static const lstep_t L_REGGAE[] = {   /* off-beat chord chops: the minor chord drawn, then blown */
-    {{0}, 0, 300}, {{DR(1), DR(2), DR(3)}, 0, 150}, {{0}, 0, 300}, {{DR(1), DR(2), DR(3)}, 0, 150}, {{0}, 0, 300},
-    {{DR(1), DR(2), DR(3)}, 0, 150}, {{0}, 0, 300}, {{DR(1), DR(2), DR(3)}, 0, 150}, {{0}, 0, 300},
-    {{BL(1), BL(2), BL(3)}, 0, 150}, {{0}, 0, 300}, {{BL(1), BL(2), BL(3)}, 0, 150}, {{0}, 0, 300},
-    {{BL(1), BL(2), BL(3)}, 0, 150}, {{0}, 0, 300}, {{DR(1), DR(2), DR(3)}, 0, 450}};
-static const lstep_t L_HORA[] = {   /* a fast dance line up the harmonic minor, a trill at the top */
-    {{BL(4)}, 0, 160}, {{DR(4)}, 0, 160}, {{BL(5)}, 0, 160}, {{DR(5)}, 0, 160}, {{BL(6)}, 0, 320},
-    {{DR(6)}, 0, 160}, {{DR(7)}, 0, 160}, {{BL(7)}, 0, 320}, {{DR(7)}, 0, 160}, {{BL(7)}, 0, 160},
-    {{DR(7)}, 0, 160}, {{BL(7)}, 0, 160}, {{DR(7)}, 0, 160}, {{DR(6)}, 0, 160}, {{BL(6)}, 0, 480}};
-static const lstep_t L_LAMENT[] = {   /* slow, down to the minor chord */
-    {{BL(6)}, 0, 600}, {{DR(6)}, 0, 400}, {{BL(6)}, 0, 400}, {{DR(5)}, 0, 400}, {{BL(5)}, 0, 600},
-    {{DR(4)}, 0, 400}, {{BL(4)}, 0, 900}, {{BL(4), BL(5), BL(6)}, 0, 900}};
-static const struct {
-    const char *name;
-    const lstep_t *steps;
-    uint8_t n;
-    uint8_t tuning;                      /* the harmonica it is written for (T_*) */
-} LICKS[] = {{"BLUES", L_BLUES, NK(L_BLUES), T_MAJOR}, {"TRAIN", L_TRAIN, NK(L_TRAIN), T_MAJOR},
-             {"WAIL", L_WAIL, NK(L_WAIL), T_MAJOR}, {"BOOGIE", L_BOOGIE, NK(L_BOOGIE), T_MAJOR},
-             {"SCALE", L_SCALE, NK(L_SCALE), T_MAJOR}, {"BENDS", L_BENDS, NK(L_BENDS), T_MAJOR},
-             {"SHAKE", L_SHAKE, NK(L_SHAKE), T_MAJOR}, {"FOLK", L_FOLK, NK(L_FOLK), T_MAJOR},
-             {"SAINTS", L_SAINTS, NK(L_SAINTS), T_MAJOR}, {"AMAZING", L_AMAZING, NK(L_AMAZING), T_MAJOR},
-             {"MARY", L_MARY, NK(L_MARY), T_MAJOR}, {"CROSS", L_CROSS, NK(L_CROSS), T_MAJOR},
-             {"CHORDS", L_CHORDS, NK(L_CHORDS), T_MAJOR}, {"DRONE", L_DRONE, NK(L_DRONE), T_MAJOR},
-             {"HIGH", L_HIGH, NK(L_HIGH), T_MAJOR}, {"JINGLE", L_JINGLE, NK(L_JINGLE), T_MAJOR},
-             {"TWINKLE", L_TWINKLE, NK(L_TWINKLE), T_MAJOR}, {"MELODY", L_MELODY, NK(L_MELODY), T_MELODY},
-             {"ODE", L_ODE, NK(L_ODE), T_MELODY}, {"STAR", L_STAR, NK(L_STAR), T_MELODY},
-             {"COUNTRY", L_COUNTRY, NK(L_COUNTRY), T_MELODY}, {"MINOR", L_MINOR, NK(L_MINOR), T_NATMIN},
-             {"DARK", L_DARK, NK(L_DARK), T_NATMIN}, {"SOUL", L_SOUL, NK(L_SOUL), T_NATMIN},
-             {"REGGAE", L_REGGAE, NK(L_REGGAE), T_NATMIN}, {"EASTERN", L_EASTERN, NK(L_EASTERN), T_HARMIN},
-             {"DANCE", L_DANCE, NK(L_DANCE), T_HARMIN}, {"HORA", L_HORA, NK(L_HORA), T_HARMIN},
-             {"LAMENT", L_LAMENT, NK(L_LAMENT), T_HARMIN}};
+#include "licks.h"
 #define NLICKS (uint8_t)(sizeof LICKS / sizeof LICKS[0])
 static struct {
     uint8_t on, step, sounding;
@@ -560,7 +431,7 @@ static void demo_step(int on)            /* the step's holes on (bent) or off */
 {
     const lstep_t *st = &LICKS[set.lick].steps[demo.step];
     uint32_t j;
-    for (j = 0; j < 3u && st->hole[j]; j++) {
+    for (j = 0; j < 4u && st->hole[j]; j++) {
         uint32_t id = st->hole[j] - 1u;
         int32_t s = j ? 0 : bend_max(id / 10u, id % 10u);
         if (s > st->bend)
@@ -610,10 +481,10 @@ static void lick_fit(void)
     int32_t o, best = set.oct, best_in = -1, best_far = 99;
     if (set.keymode)
         return;                          /* HOLES: every hole has its key */
-    for (o = -2; o <= 1; o++) {
+    for (o = -2; o <= 2; o++) {
         int32_t lo = 53 + 12 * o, hi = lo + (int32_t)NKEYS - 1, in = 0, far = o > set.oct ? o - set.oct : set.oct - o;
         for (i = 0; i < n; i++)
-            for (j = 0; j < 3u && st[i].hole[j]; j++) {
+            for (j = 0; j < 4u && st[i].hole[j]; j++) {
                 uint32_t id = st[i].hole[j] - 1u;
                 int32_t b = j ? 0 : bend_max(id / 10u, id % 10u), note;
                 note = hole_note(id / 10u, id % 10u) - (b < st[i].bend ? b : st[i].bend);
@@ -751,7 +622,7 @@ static void pos_step(int32_t d)
 
 static void octave_step(int32_t d)
 {
-    int32_t o = clamp(set.oct + d, -2, 1);
+    int32_t o = clamp(set.oct + d, -2, 2);
     char t[4];
     if (o == set.oct)
         return;
@@ -798,7 +669,7 @@ static void knob_turn(uint32_t k, int32_t d)
         set.keymode ^= 1u;
         changed();
     } else if (k == KN_MOUTH) {
-        set.mouth = (uint8_t)clamp(set.mouth + d, 1, 3);
+        set.mouth = (uint8_t)clamp(set.mouth + d, 1, 4);
         changed();
     } else if (k == KN_LIGHT) {
         set.lights = (uint8_t)(set.lights == 1u ? 2u : 1u);
@@ -826,7 +697,7 @@ static void knob_text(uint32_t k, char *t)
     else if (k == KN_KEYS)
         text_cat(t, set.keymode ? "HOLES" : "PIANO");
     else if (k == KN_MOUTH)
-        text_cat(t, set.mouth == 1u ? "1 HOLE" : set.mouth == 2u ? "2 HOLES" : "3 HOLES");
+        text_cat(t, set.mouth == 1u ? "1 HOLE" : set.mouth == 2u ? "2 HOLES" : set.mouth == 3u ? "3 HOLES" : "4 HOLES");
     else if (k != KN_NONE)
         param_text(k, t);
 }
@@ -851,16 +722,38 @@ static uint32_t mouth_ids(uint32_t id)
     } else if (set.mouth == 3u) {
         lo = h ? h - 1u : 0u;
         hi = h < 9u ? h + 1u : 9u;
+    } else if (set.mouth == 4u) {        /* four holes, at the ends too */
+        lo = h ? h - 1u : 0u;
+        if (lo > 6u)
+            lo = 6u;
+        hi = lo + 3u;
     }
     for (h = lo; h <= hi; h++)
         m |= 1u << (d * 10u + h);
     return m;
 }
 
-/* key k sounds hole id, bent, with its neighbours plain (those another key already sounds stay that key's) */
+/* One mouth, one breath: what sounds together is blown or drawn, and within 4 neighbouring holes */
+#define MOUTH_REACH 3u                   /* from the lowest hole to the highest */
+static int in_reach(uint32_t a, uint32_t b)   /* two hole ids can sound together */
+{
+    uint32_t ha = a % 10u, hb = b % 10u;
+    return a / 10u == b / 10u && (ha > hb ? ha - hb : hb - ha) <= MOUTH_REACH;
+}
+
+/* key k sounds hole id, bent, with its neighbours plain (those another key already sounds stay that key's). The mouth
+ * goes there: the lick stops, and what sounds out of its reach stops too */
 static void key_play(uint32_t k, uint32_t id, uint32_t bend)
 {
-    uint32_t m = mouth_ids(id), j;
+    uint32_t m = mouth_ids(id), j, i;
+    demo_stop();
+    for (j = 0; j < 20u; j++)
+        if ((play.sounding >> j & 1u) && !(m >> j & 1u))
+            for (i = 0; i < 20u; i++)
+                if ((m >> i & 1u) && !in_reach(i, j)) {
+                    hole_off(j);
+                    break;
+                }
     key_ids[k] = m;
     for (j = 0; j < 20u; j++)
         if (j == id)
@@ -916,9 +809,21 @@ static void key_event(uint32_t k, int down)
     }
     if (down) {                          /* PIANO: the harmonica's own notes only, as it plays them unbent */
         int32_t n = key_note(k);
+        uint32_t id, j, h, d;
         if (n < 0 || n > 127 || nmap[n].id < 0 || nmap[n].bend)
             return;                      /* no hole has this note (a bend would reach it): a dark, silent key */
-        key_play(k, (uint32_t)nmap[n].id, 0);
+        id = (uint32_t)nmap[n].id;
+        for (d = 0; d < 2u; d++)         /* a note on two holes (G: 2 draw, 3 blow): the one the mouth can reach */
+            for (h = 0; h < 10u; h++) {
+                uint32_t alt = d * 10u + h;
+                int ok = hole_note(d, h) == n;
+                for (j = 0; ok && j < 20u; j++)
+                    if ((play.sounding >> j & 1u) && !in_reach(alt, j))
+                        ok = 0;
+                if (ok && play.sounding)
+                    id = alt;
+            }
+        key_play(k, id, 0);
     } else
         key_release(k);
 }
@@ -1007,13 +912,16 @@ static void input(void)
             blow |= 1u << hole_key[id];
             draw |= 1u << hole_key[10u + id];
         }
-        lit_keys = blow | keys;
+        lit_keys = blow;
+        for (k = 0; k < NKEYS; k++)      /* the bend keys held */
+            if ((keys >> k & 1u) && hole_role[k] >= 20)
+                lit_keys |= 1u << k;
         for (id = 0; id < 20u; id++)
             if (play.sounding >> id & 1u)
                 lit_keys |= 1u << hole_key[id];
         dim_keys = draw & ~lit_keys;
     } else {
-        lit_keys = keys_blow | (keys & (keys_blow | keys_draw | keys_bent));
+        lit_keys = keys_blow;
         for (id = 0; id < 20u; id++)
             if (play.sounding >> id & 1u) {
                 int32_t kk = play.note[id] - key_note(0);
@@ -1126,7 +1034,7 @@ static void draw_home(void)
         text_cat(t, p);
     }
     if (set.mouth > 1u)
-        text_cat(t, set.mouth == 2u ? "  MOUTH 2" : "  MOUTH 3");
+        text_cat(t, set.mouth == 2u ? "  MOUTH 2" : set.mouth == 3u ? "  MOUTH 3" : "  MOUTH 4");
     if (play.wah)
         text_cat(t, "  WAH");
     if (play.trem)
@@ -1229,9 +1137,9 @@ void app_init(void)
     const tuning_t *t;
     uint32_t i;
     int ok = plat_store_load(OBJ_SETTINGS, &set, sizeof set) == (int)sizeof set && set.magic == SET_MAGIC
-             && set.tuning < NTUN && set.pos < 4u && set.oct >= -2 && set.oct <= 1 && set.page < NPAGES
+             && set.tuning < NTUN && set.pos < 4u && set.oct >= -2 && set.oct <= 2 && set.page < NPAGES
              && set.preset <= NPRESETS && set.notation <= 1u && set.lick < NLICKS && set.lights >= 1u
-             && set.lights <= 2u && set.keymode <= 1u && set.mouth >= 1u && set.mouth <= 3u;
+             && set.lights <= 2u && set.keymode <= 1u && set.mouth >= 1u && set.mouth <= 4u;
     if (ok) {
         t = &TUN[set.tuning];
         ok = set.key < t->nkeys;
@@ -1305,6 +1213,8 @@ int app_expect(const char *what, int *got)
         *got = set.notation;
     else if (!strcmp(what, "lick"))
         *got = set.lick;
+    else if (!strcmp(what, "demo"))
+        *got = demo.on;
     else if (!strcmp(what, "preset"))
         *got = set.preset;
     else if (!strcmp(what, "lights"))

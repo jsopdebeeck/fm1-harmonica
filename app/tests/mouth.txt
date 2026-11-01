@@ -1,0 +1,129 @@
+# One mouth: what sounds together is blown or drawn, within 4 neighbouring holes; a key out of reach moves the mouth.
+#   app/build/host/harmonica_host app/tests/mouth.txt app/build/host
+# A C harp, PIANO keys, F3..G5: key 7 C4 (1 blow), 11 E4 (2 blow), 14 G4, 19 C5 (4 blow), 21 D5 (4 draw), 9 D4 (1 draw)
+wait 600
+# the C chord: G4 comes from 3 blow, the hole the mouth reaches, not 2 draw (holes 0 1 2)
+key 7 down
+key 11 down
+wait 50
+key 14 down
+wait 100
+expect holes 7
+# 4 blow: within reach, four holes sound (holes 0 1 2 3)
+key 19 down
+wait 100
+expect holes 15
+# 5 blow (E5): 1 blow is out of reach and stops (holes 1 2 3 4)
+key 23 down
+wait 100
+expect holes 30
+shot mouth-moves.png
+# a drawn note: the breath turns, all the blown notes stop (hole 13)
+key 21 down
+wait 100
+expect holes 8192
+# 1 draw is within reach of 4 draw (holes 10 13)
+key 9 down
+wait 100
+expect holes 9216
+# 5 draw (F5, key 24) is not within reach of 1 draw, which stops (holes 13 14)
+key 24 down
+wait 100
+expect holes 24576
+key 7 up
+key 11 up
+key 14 up
+key 19 up
+key 23 up
+key 21 up
+key 9 up
+key 24 up
+wait 100
+expect holes 0
+# alone, G4 is still 2 draw, the lower hole (hole 11)
+key 14 down
+wait 100
+expect holes 2048
+key 14 up
+wait 50
+# a key held while its hole has stopped stays silent; its release stops nothing else
+key 7 down
+wait 50
+key 21 down
+wait 50
+key 7 up
+wait 50
+expect holes 8192
+key 21 up
+wait 50
+expect holes 0
+# playing a key stops the lick: one mouth
+tap PLAY
+wait 300
+expect demo 1
+key 7 down
+wait 100
+expect demo 0
+# (BLUES moved the keys up an octave: key 7 is now C5, 4 blow)
+expect holes 8
+key 7 up
+wait 50
+# HOLES keys: the same rule (1 and 2 blow, 4 blow within reach, 5 blow stops 1 blow, then 4 draw)
+tap GLO
+turn K3 1
+wait 50
+key w0 down
+key w1 down
+wait 100
+expect holes 3
+key w3 down
+wait 100
+expect holes 11
+key w4 down
+wait 100
+expect holes 26
+key b3 down
+wait 100
+expect holes 8192
+key w0 up
+key w1 up
+key w3 up
+key w4 up
+key b3 up
+wait 100
+expect holes 0
+# a mouth of 3 at 5 blow (holes 3 4 5), then 8 blow (holes 6 7 8): hole 5 is still within reach of them all
+turn K4 2
+wait 50
+key w4 down
+wait 100
+expect holes 56
+key w7 down
+wait 100
+expect holes 480
+key w4 up
+key w7 up
+wait 100
+expect holes 0
+# a mouth of 4: one hole below and two above (holes 3 4 5 6); four holes at the ends too
+turn K4 1
+wait 50
+expect mouth 4
+key w4 down
+wait 100
+expect holes 120
+key w4 up
+wait 50
+key w9 down
+wait 100
+expect holes 960
+key w9 up
+wait 50
+key w0 down
+wait 100
+expect holes 15
+key w0 up
+wait 50
+turn K4 1
+wait 50
+expect mouth 4

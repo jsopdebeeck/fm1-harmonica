@@ -1,0 +1,209 @@
+# The examples PLAY loops, as a player reads them. tools/gen_licks.py makes build/gen/licks.h from this file and
+# refuses what a real harmonica cannot do: a chord that is not 1 to 4 neighbouring holes on one breath, a bend the hole
+# does not have, a lick too wide for the 27 keys.
+#
+#   lick NAME TUNING BEAT_MS   description   TUNING: major, melody, natural, harmonic. The order here is SELECT's
+#   = PHRASE tokens...         a phrase of this lick        @PHRASE, @PHRASE*4   play it
+#   +4 blow, -3 draw, ' each half step of bend (-3''), a chord with commas (-1,-2,-3: only its first hole bends)
+#   r a rest, :1.5 a length in beats (default 1)
+
+# ---------------------------------------------------------------- Major Diatonic
+
+lick BLUES major 400   a 12-bar shuffle in 2nd position, two choruses
+= I -2:1.33 -3':.67 -4 -3':.5 -2:.5
+= J -2:.67 -2:.33 -3':.67 -3:.33 -4 -4':.5 -4:.5
+= IV +4:1.33 +5:.67 +6 +5:.5 +4:.5
+= V -4:1.33 -5:.67 -6 -5:.5 -4:.5
+= TURN -4':.67 -4:.33 +4:.67 -3':.33 -3:.67 -3'':.33 -2
+@I @J @I @J @IV @IV @I @J @V @IV @I @TURN
+@J @I @J @I @IV @IV @J @I @V @IV @I -2:.67 -3':.33 -4:.67 -3':.33 -2:2
+
+lick TRAIN major 110   the chug, slow to fast and back, with the whistle
+= S -1,-2,-3:2 -1,-2,-3:2 +1,+2,+3:2 +1,+2,+3:2
+= M -1,-2,-3:1.5 -1,-2,-3:1.5 +1,+2,+3:1.5 +1,+2,+3:1.5
+= F -1,-2,-3 -1,-2,-3 +1,+2,+3 +1,+2,+3
+= W -4',-5:8 -4,-5:8
+@S*6 @M*8 @F*16 @W @F*16 @W @M*4 @S*2 @W
+
+lick WAIL major 380   slow bent phrases in 2nd position
+= A -4' -4:2 +5 -5:.5 +5:.5 -4:3 r
+= B -6' -6:2 +6 -5 +5 -4:2
+= C -3' -3'' -2:2 r -2:.5 -3:.5 -4 -5
+= D +6:2 -5 +5 -4' -4:2 -3' -2:4 r
+@A @B @C @D @A @C @B @D
+
+lick BOOGIE major 185   a 12-bar boogie line in 2nd position, two choruses
+= I -2 -3 -4 +5 -5 +5 -4 -3
+= IV +1 +2 +3 -3'' -3' -3'' +3 +2
+= V -1 -2' -3'' -3 +4 -3 -3'' -2'
+= E -2 -3 -4:2 -2,-3:4
+@I*4 @IV*2 @I*2 @V @IV @I @E
+@I*4 @IV*2 @I*2 @V @IV @I @E
+
+lick SCALE major 240   the major scale in 1st position: two octaves, thirds, the chord
+= U +4 -4 +5 -5 +6 -6 -7 +7 -8 +8 -9 +9:2
+= D -9 +8 -8 +7 -7 -6 +6 -5 +5 -4 +4:2 r
+= T +4 +5 -4 -5 +5 +6 -5 -6 +6 -7 -6 +7 -7 -8 +7 +8:2
+= R +8 +7 -8 -7 +7 -6 -7 +6 -6 -5 +6 +5 -5 -4 +5 +4:2 r
+= A +4 +5 +6 +7 +8 +9:2 +8 +7 +6 +5 +4:2 r
+@U @D @T @R @A @U @D @T @R
+
+lick BENDS major 450   every draw bend from 1 to 4, one half step at a time, then used in a phrase
+= S -1 -1' -1 r -2 -2' -2'' -2' -2 r -3 -3' -3'' -3''' -3'' -3' -3 r -4 -4' -4 r
+= P -2 -3'' -3' -3 +4 -3 -3' -2'' -2' -2:2 -4' -4 -3' -3'' -2:3 r
+@S @P @S @P
+
+lick SHAKE major 95   the warble: two neighbouring holes in turn, fast
+= A -2 -3
+= B -4 -5
+= C -5 -6
+@A*8 -2:4 r:4 @B*8 -4:4 r:4 @C*8 -5:4 r:4 @B*12 -4':4 -4:6 r:4 @A*12 -2:8 r:4
+@C*8 -6:4 r:4 @B*8 -4':4 -4:4 r:4 @A*8 -3'':4 -2:8 r:4
+
+# Oh! Susanna, Stephen Foster (1848, public domain); tab: learntheharmonica.com/free-folk-trad-tabs/oh!-susanna
+lick FOLK major 270   Oh! Susanna, verse and chorus, twice
+= A +4:.5 -4:.5 +5 +6 +6:1.5 -6:.5 +6 +5 +4:1.5 -4:.5 +5 +5 -4 +4 -4:2
+= B +4:.5 -4:.5 +5 +6 +6:1.5 -6:.5 +6 +5 +4:1.5 -4:.5 +5 +5 -4 -4 +4:2
+= C -5:2 -5:2 -6 -6:2 -6 +6 +6 +5 +4 -4:3
+@A @B @C @B r:2 @A @B @C @B
+
+# When the Saints (traditional); tab: learntheharmonica.com/free-blues-jazz-tabs/when-the-saints-go-marching-in
+lick SAINTS major 300   When the Saints, the whole tune, twice
+= A +4 +5 -5 +6:5 +4 +5 -5 +6:5
+= B +4 +5 -5 +6:2 +5:2 +4:2 +5:2 -4:4
+= C +5 -4 +4:3 +4 +5:2 +6:2 +6 +6 -5:4
+= D +5 -5 +6:2 +5:2 +4:2 -4:2 +4:4
+@A @B @C @D r:2 @A @B @C @D
+
+# Amazing Grace (New Britain, 1829, public domain); tab: harmonica.com/4-levels-of-amazing-grace (level 1)
+lick AMAZING major 380   Amazing Grace, the whole verse, twice
+= A +6 +7:1.5 +7:.5 +8:.5 +7:.5 +8:2 -8 +7:2 -6 +6:3
+= B +6 +7:1.5 +7:.5 +8:.5 +7:.5 +8:2 -8 +9:2 +9:4
+= C +8 +9:1.5 +9:.5 +8:.5 +7:.5 +8:2 -8 +7:2 -6 +6:3
+= D +6 +7:1.5 +7:.5 +8:.5 +7:.5 +8:2 -8 +7:6
+@A @B @C @D r:2 @A @B @C @D
+
+# Mary Had a Little Lamb (traditional): E D C D E E E / D D D / E G G / E D C D E E E E / D D E D C
+lick MARY major 300   Mary Had a Little Lamb, three times
+= A +5 -4 +4 -4 +5 +5 +5:2 -4 -4 -4:2 +5 +6 +6:2
+= B +5 -4 +4 -4 +5 +5 +5 +5 -4 -4 +5 -4 +4:4
+@A @B r @A @B r @A @B
+
+lick CROSS major 300   the blues scale in 2nd position, its blue notes bent, up, down, in triplets
+= U -2 -3' +4 -4' -4 -5 +6:2
+= D -5 -4 -4' +4 -3' -2:2 r
+= P -2:.5 -3':.5 -2:.5 -3':.5 +4 -3' -2:2 r
+= T -2:.67 -3':.67 +4:.67 -4':.67 -4:.67 -5:.67 +6:2 -5:.67 -4:.67 -4':.67 +4:.67 -3':.67 -2:.67
+@U @D @U @D @P @P @T @U @D @P @T -2:4
+
+lick CHORDS major 480   the low and middle chords, sixteen bars of rhythm
+= L +1,+2,+3 +1,+2,+3 -1,-2,-3 +1,+2,+3
+= M +4,+5,+6 +4,+5,+6 -4,-5 +4,+5,+6
+= V -1,-2,-3 -1,-2,-3 -1,-2,-3 +1,+2,+3
+@L*2 @M*2 @L @V @L @V @M*2 @L*2 @V @M @L +1,+2,+3:4
+
+lick DRONE major 430   low and slow: 1 draw and 2 draw bent over the bottom holes
+= A -1:2 -1' -1:3 -2:2 -2'' -2':.5 -2:.5 -1:4
+= B +1 -1' -1:2 +2 -2'' -2' -2 -3'':2 -3' -3 -2:4
+@A @B @A @B @A -1,-2:6
+
+lick HIGH major 350   the top of the harmonica: the blow bends on 8, 9 and 10
+= A +7 -8 +8' +8 -9 +9' +9:2 r
+= B +10 +10' +10'' +10' +10:2 -10 +9 -9 +8 -8 +7:2 r
+@A @B @A @B r:2 @A @B @A @B
+
+# Jingle Bells (James Lord Pierpont, 1857, public domain); notes: piano-keyboard-guide.com/how-to-play-jingle-bells
+lick JINGLE major 260   Jingle Bells, the chorus, twice
+= A +5 +5 +5:2 +5 +5 +5:2 +5 +6 +4:1.5 -4:.5 +5:4
+= B -5 -5 -5:1.5 -5:.5 -5 +5 +5 +5:.5 +5:.5 +5 -4 -4 +5 -4:2 +6:2
+= C -5 -5 -5:1.5 -5:.5 -5 +5 +5 +5:.5 +5:.5 +6 +6 -5 -4 +4:4
+@A @B @A @C r:2 @A @B @A @C
+
+# Twinkle Twinkle Little Star (traditional): C C G G A A G / F F E E D D C / G G F F E E D, twice / the first two again
+lick TWINKLE major 340   Twinkle Twinkle Little Star, the whole tune, twice
+= A +4 +4 +6 +6 -6 -6 +6:2
+= B -5 -5 +5 +5 -4 -4 +4:2
+= C +6 +6 -5 -5 +5 +5 -4:2
+@A @B @C @C @A @B r:2 @A @B @C @C @A @B
+
+# ---------------------------------------------------------------- Melody Maker
+
+lick MELODY melody 240   the major scale from 2 draw, no bend: two octaves, thirds, the chord
+= U -2 +3 -3 +4 -4 +5 -5 +6 -6 -7 +7 -8 +8 -9 +9:2
+= D -9 +8 -8 +7 -7 -6 +6 -5 +5 -4 +4 -3 +3 -2:2 r
+= T -2 -3 +3 +4 -3 -4 +4 +5 -4 -5 +5 +6 -5 -6 +6:2 r
+= A -2 -3 -4 +6 -7 -8 +9:2 -8 -7 +6 -4 -3 -2:2 r
+@U @D @T @A @U @D @T @A
+
+# Ode to Joy (Beethoven, 1824, public domain); notes: piano-keyboard-guide.com/beethoven-ode-to-joy-very-easy-piano-tutorial
+lick ODE melody 300   Ode to Joy, the whole theme in 2nd position, twice
+= A -3 -3 +4 -4 -4 +4 -3 +3 -2 -2 +3 -3 -3:1.5 +3:.5 +3:2
+= C -3 -3 +4 -4 -4 +4 -3 +3 -2 -2 +3 -3 +3:1.5 -2:.5 -2:2
+= B +3 +3 -3 -2 +3 -3:.5 +4:.5 -3 -2 +3 -3:.5 +4:.5 -3 +3 -2 +3 -1:2
+@A @C @B @C r:2 @A @C @B @C
+
+lick STAR melody 340   Twinkle Twinkle in 2nd position, no bend, twice
+= A -2 -2 -4 -4 +5 +5 -4:2
+= B +4 +4 -3 -3 +3 +3 -2:2
+= C -4 -4 +4 +4 -3 -3 +3:2
+@A @B @C @C @A @B r:2 @A @B @C @C @A @B
+
+lick COUNTRY melody 270   a country tune in 2nd position, ending on two holes
+= A -2:.5 +3:.5 -3 -4 +5 -4:2 -3 +3 -2:4
+= B +4 -3 +3 -2 +3:2 -3:2 -4 +5 -5 +6 -4:4
+= C +6 -5 +5 -4 +4 -3 +3:2 -2 +3 -3 -4 -2,-3:4
+@A @B @A @C r:2 @A @B @A @C
+
+# ---------------------------------------------------------------- Natural Minor
+
+lick MINOR natural 260   the natural minor from 2 draw: two octaves, then the minor chord's notes
+= U -2 -3' -3 +4 -4 +5 -5 +6 -6 -7 +7 -8 +8 -9 +9:2
+= D -9 +8 -8 +7 -7 -6 +6 -5 +5 -4 +4 -3 -3' -2:2 r
+= A -2 -3 -4 +6 -7 -8 +9:2 -8 -7 +6 -4 -3 -2:2 r
+@U @D @A @U @D @A
+
+lick DARK natural 330   a minor tune from 2 draw
+= A -2 -3 +4 -4 +5:2 -4 +4 -3 -2:2 r
+= B -4 +5 -5 +6:2 -5 +5 -4 +4 -3:2 r
+= C +6 -6 -7 +7:2 -7 -6 +6 -5 +5:2 -4:2
+@A @B @A @C -2:4 r @A @B @A @C -2:4
+
+lick SOUL natural 330   a 12-bar minor blues from 2 draw, 4 draw bent for its blue note, two choruses
+= I -2:1.33 -3:.67 +4 -4':.5 -4:.5
+= IV +4:1.33 +5:.67 +6 +5:.5 +4:.5
+= V -4:1.33 -5:.67 -6 -5:.5 -4:.5
+= E -4' -4 -3 -2:5
+@I*4 @IV*2 @I*2 @V @IV @I @E
+@I*4 @IV*2 @I*2 @V @IV @I @E
+
+lick REGGAE natural 300   off-beat chord chops: the minor chord drawn, then blown
+= G r -1,-2,-3 r -1,-2,-3
+= C r +1,+2,+3 r +1,+2,+3
+@G*2 @C @G @G*2 @C @G @C*2 @G*2 @C @G @G -1,-2,-3:4 r:4
+@G*2 @C @G @G*2 @C @G @C*2 @G*2 @C @G @G -1,-2,-3:4
+
+# ---------------------------------------------------------------- Harmonic Minor
+
+lick EASTERN harmonic 260   the harmonic minor from 4 blow: two octaves and its turn
+= U +4 -4 +5 -5 +6 -6 -7 +7 -8 +8 -9 +9:2
+= D -9 +8 -8 +7 -7 -6 +6 -5 +5 -4 +4:2 r
+= T -6 -7 -6 +6 -6 -7 +7:2 -7 -6 +6 -5 +5:2 r
+@U @D @T @T @U @D @T +4,+5,+6:4
+
+lick DANCE harmonic 170   fast, down the scale from 6 blow, to the minor chord
+= A +6 -6 -7 +7:2 -7 -6 +6 -5 +5 -4 +4:2
+= B +4 +5 +6 -6:2 +6 -5 +5 -4 +5 -5 +6:4
+= C +4,+5,+6:2 r:2 +4,+5,+6:2 r:2 -4,-5:2 r:2 +4,+5,+6:4 r:2
+@A @B @A @B @C @A @B @A @B @C @C
+
+lick HORA harmonic 165   a fast dance line up the scale, a trill at the top, and its rhythm
+= A +4 -4 +5 -5 +6:2 -6 -7 +7:2 -7 +7 -7 +7 -7 -6 +6:3
+= B -6 -7 -6 +6 -5 +6 -5 +5 -4 +5 -4 +4:3 r
+= C +4,+5 r +4,+5 r -4,-5 r -4,-5 r
+@A @A @B @C*2 @A @B @C*2 @A @A @B @C*2 @A @B +4,+5,+6:4
+
+lick LAMENT harmonic 520   slow, down to the minor chord
+= A +6:2 -6 +6 -5:2 +5:2 -4 +5 -4 +4:4
+= B +4 -4 +5:2 -5 +6:2 -6 -7:3 +7:4
+= C +7:2 -7 -6 +6:2 -5 +5 -4:2 +4:2 +4,+5,+6:6
+@A @B @C r:2 @A @C
