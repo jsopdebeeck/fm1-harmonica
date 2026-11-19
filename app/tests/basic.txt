@@ -1,155 +1,178 @@
 # HARMONICA in the host simulator: ./build.sh --host, then
 #   app/build/host/harmonica_host app/tests/basic.txt app/build/host
-# A C harp (Major Diatonic), the keyboard F3..G5: key 7 is C4 (hole 1 blow)
+# A C harp (Major Diatonic). White keys w0..w9 are holes 1..10, w10 is DRAW, w11 w12 w13 bend 1, 2, 3 half steps.
+# holes: the sounding holes' bits, blow 0..9, draw 10..19
 wait 600
 shot home.png
-wav play.wav
-# the keys' lights: blown C4 E4 C5 E5 G5 bright (bits 7 11 19 23 26), drawn D4 G4 B4 D5 F5 dim (bits 9 14 18 21 24:
-# G4 is 2 draw, the lower hole)
-expect blow 76023936
-expect draw 19153408
-# C4: hole 1 blow
-key 7 down
-wait 300
-expect note 60
-expect holes 1
-key 7 up
-# D5: hole 4 draw
-key 21 down
-wait 300
-expect note 74
+expect breath 0
+expect lit 0
+# at rest only the ten holes glow: keys 0 2 4 6 7 9 11 12 14 16
+expect dim 88789
+# 4 blow: C5
+key w3 down
+wait 200
+expect holes 8
+expect note 72
+shot blow.png
+# the breath turns under the held key: 4 draw, D5; DRAW lights (key 18), with hole 4's key (key 6)
+key w10 down
+wait 200
 expect holes 8192
-key 21 up
-# Db5 and Ab4: only bends reach them (4 draw, 3 draw): dark keys, silent
-key 20 down
+expect note 74
+expect breath 1
+expect lit 262208
+shot draw.png
+# a half step of bend: 4 draw bent, Db5
+key w11 down
 wait 200
-expect holes 0
-key 20 up
-key 15 down
-wait 200
-expect holes 0
-key 15 up
-# Eb4: no hole has it at all (a dark key)
-key 10 down
+expect bend 1
+expect note 73
+shot bend.png
+# 4 draw has one half step only: the whole step key gives no more
+key w12 down
+wait 100
+expect bend 1
+key w12 up
+key w11 up
+wait 100
+expect bend 0
+expect note 74
+key w3 up
 wait 100
 expect holes 0
-key 10 up
-wait 300
-wavstop
-# each setting has one control: ALGORITHM the tuning, PRESET the key, SEL the position, OCT the octave
+# 3 draw with the whole step key: A4 (B4 bent twice)
+key w2 down
+key w12 down
+wait 200
+expect holes 4096
+expect bend 2
+expect note 69
+shot bend2.png
+key w12 up
+key w2 up
+key w10 up
+wait 100
+expect holes 0
+expect breath 0
+# a chord: neighbouring keys, 1 2 3 blow
+key w0 down
+key w1 down
+key w2 down
+wait 200
+expect holes 7
+shot chord.png
+# 4 blow is within reach: four holes
+key w3 down
+wait 100
+expect holes 15
+# 5 blow: 1 blow is out of reach and stops (one mouth, 4 holes)
+key w4 down
+wait 100
+expect holes 30
+# the breath turns: the same holes, drawn
+key w10 down
+wait 100
+expect holes 30720
+key w10 up
+key w0 up
+key w1 up
+key w2 up
+key w3 up
+key w4 up
+wait 100
+expect holes 0
+# a blow bend at the top: 10 blow bends a whole step (C7 to Bb6)
+key w9 down
+key w13 down
+wait 200
+expect holes 512
+expect bend 2
+expect note 94
+shot blowbend.png
+key w13 up
+key w9 up
+wait 100
+# the black keys and the last two white keys do nothing
+key b0 down
+key w14 down
+key w15 down
+wait 100
+expect holes 0
+key b0 up
+key w14 up
+key w15 up
+# ALGORITHM the tuning, PRESET the key
+# (each shows its name and value large for a moment, as KNOB 1-4 do)
 turn ALGO 1
 wait 50
 expect tuning 1
 expect key 4
+expect knob 1
+shot knob-tuning.png
 turn PRESET 2
 wait 50
 expect key 6
-tap SEL
+shot knob-key.png
+turn SELECT 6
 wait 50
-expect pos 2
-expect lick 0
+shot knob-lick.png
+turn SELECT -6
+wait 1600
+expect knob 0
 shot melody.png
-tap OCT-
-expect oct -1
-# the knobs do nothing on the home page (they say where they work)
-turn K1 1
-wait 50
-expect pos 2
-expect oct -1
-# REED (ENV): K2 the breath
-tap ENV
-expect page 1
+# KNOB 1-4 shape the sound on the home page: it becomes CUSTOM; EDIT picks the next sound
+# a knob turned shows its name and value large for a moment, then the harmonica comes back
+expect preset 0
 turn K2 3
 wait 50
-shot reed.png
-tap LFO
-expect page 2
-shot hands.png
-tap FX
-expect page 3
-shot amp.png
-# EDIT, the only place for the sound: the breath turned made it CUSTOM, so BLUES, then FOLK
 expect preset 4
+expect knob 1
+shot knob.png
+turn K3 2
+wait 50
+shot knob3.png
+wait 1600
+expect knob 0
+shot custom.png
+# a hole played brings the harmonica back at once
+turn K4 1
+wait 50
+expect knob 1
+key w3 down
+wait 50
+expect knob 0
+key w3 up
+turn K4 -1
+wait 1600
 tap EDIT
 wait 30
 expect preset 0
 tap EDIT
 wait 30
 expect preset 1
-# SETUP (GLO): K1 the note names, K2 the drawn notes' lights
+# SETUP (GLO): K1 the note names, K2 the keys' lights
 tap GLO
-expect page 4
+expect page 1
 expect notation 1
 turn K1 1
 wait 50
 expect notation 0
-shot setup.png
-turn K1 1
-wait 50
-expect notation 1
-expect lights 2
+expect lights 1
 turn K2 1
 wait 50
-expect lights 1
-# K3 the keys: HOLES (white blow, black draw); K4 the mouth: 3 holes
-turn K3 1
-wait 50
-expect keymode 1
-turn K4 2
-wait 50
-expect mouth 3
-shot setup-holes.png
-# white key 4: 4 blow, with 3 and 5 blown too (holes 2 3 4 = bits 4 8 16)
-tap HOME
-key w3 down
-wait 200
-expect holes 28
-shot holes-mouth3.png
-key w3 up
-tap GLO
-wait 50
-expect holes 0
-# black key 3 (3 draw) with the bend key for a whole step: 3 draw bent, 2 and 4 draw plain (bits 11 12 13); on this
-# Melody Maker 3 draw bends a half step only
-key b2 down
-key w11 down
-wait 200
-expect holes 14336
-expect bend 1
-key w11 up
-wait 50
-expect bend 0
-key b2 up
-# a mouth of 2 at the top: 10 blow takes 9 too (bits 8 9)
-turn K4 -1
-wait 50
-expect mouth 2
-key w9 down
-wait 100
-expect holes 768
-key w9 up
-# back to PIANO with a mouth of 3: on this Bb Melody Maker an octave down, key 24 is F4, 1 draw: 1 and 2 draw sound
-# (hole 1 has no neighbour below: bits 10 11)
-turn K3 1
-wait 50
-expect keymode 0
-turn K4 1
-wait 50
-tap HOME
-key 24 down
-wait 200
-expect holes 3072
-shot piano-mouth3.png
-key 24 up
-tap GLO
-wait 50
-expect holes 0
-turn K4 -2
-wait 50
-expect mouth 1
+expect lights 2
+wait 1400
+shot setup.png
+# HOME shows the battery, top right, for 3 s (the simulator's is full)
+expect battery 0
 tap HOME
 expect page 0
-shot letters.png
+wait 50
+expect battery 1
+shot battery.png
+wait 3100
+expect battery 0
+shot latin.png
 expect dirty 1
 tap SAVE
 wait 30
@@ -157,22 +180,30 @@ expect dirty 0
 reboot
 wait 600
 expect tuning 1
-expect oct -1
-expect notation 1
-expect lights 1
+expect key 6
+expect notation 0
+expect lights 2
 expect preset 1
-# the licks: SELECT picks, PLAY loops until PLAY again
+# the licks: SELECT picks, PLAY loops until PLAY again; the lights are the keys to press
+turn ALGO -1
+turn K1 0
+wait 1400
 expect lick 0
 tap PLAY
-wait 1500
+wait 100
+# BLUES starts on 2 draw: hole 2's key and DRAW lit (keys 2 and 18)
+expect holes 2048
+expect breath 1
+expect lit 262148
+wait 1400
 shot lick.png
-wait 2500
-# BLUES is over (3.2 s): it starts again, until PLAY
-wait 300
-expect holes >0
-tap PLAY
-wait 30
-expect holes 0
+# a key takes the mouth: the lick stops
+key w3 down
+wait 100
+expect demo 0
+expect holes 8
+key w3 up
+wait 50
 turn SELECT 1
 wait 200
 expect lick 1
@@ -180,22 +211,16 @@ tap PLAY
 wait 80
 # TRAIN's first step is a chord: 1 2 3 draw
 expect holes 7168
+wait 1400
 shot train.png
 tap PLAY
 wait 30
 expect holes 0
-# SEL is the position, not the lick
-tap SEL
-expect lick 1
-# the licks for the other tunings, their names in those tunings' colours
+# a lick written for another tuning says so
 turn SELECT -2
-wait 200
+wait 1500
 expect lick 28
 shot lament.png
-turn SELECT -4
-wait 200
-expect lick 24
-shot reggae.png
-turn SELECT 5
+turn SELECT 1
 wait 200
 expect lick 0

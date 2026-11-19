@@ -1,8 +1,9 @@
 # The examples PLAY loops, as a player reads them. tools/gen_licks.py makes build/gen/licks.h from this file and
 # refuses what a real harmonica cannot do: a chord that is not 1 to 4 neighbouring holes on one breath, a bend the hole
-# does not have, a lick too wide for the 27 keys.
+# does not have.
 #
 #   lick NAME TUNING BEAT_MS   description   TUNING: major, melody, natural, harmonic. The order here is SELECT's
+#                              ("in 2nd position" in the description shows on the screen, with the key it gives)
 #   = PHRASE tokens...         a phrase of this lick        @PHRASE, @PHRASE*4   play it
 #   +4 blow, -3 draw, ' each half step of bend (-3''), a chord with commas (-1,-2,-3: only its first hole bends)
 #   r a rest, :1.5 a length in beats (default 1)

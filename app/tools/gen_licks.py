@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 
 GAP_MS = 30                               # app.c: the breath demo_run leaves after each step
-NKEYS, OCTS = 27, range(-2, 3)            # the keyboard: key 0 is F3 + 12 * octave
 TUN = {                                   # as app.c TUN[]: T_ name, blow, draw; a harmonica whose hole 1 blows C4
     "major": ("T_MAJOR", [0, 4, 7, 12, 16, 19, 24, 28, 31, 36], [2, 7, 11, 14, 17, 21, 23, 26, 29, 33]),
     "melody": ("T_MELODY", [0, 4, 9, 12, 16, 19, 24, 28, 31, 36], [2, 7, 11, 14, 18, 21, 23, 26, 30, 33]),
@@ -55,7 +54,7 @@ def steps_of(lick):
     if lick["tuning"] not in TUN:
         fail(lick["name"], f"no tuning {lick['tuning']}")
     _, blow, draw = TUN[lick["tuning"]]
-    steps, notes = [], []
+    steps = []
     for tok in lick["tokens"]:
         m = TOKEN.match(tok)
         if not m:
@@ -82,13 +81,9 @@ def steps_of(lick):
         room = max(0, (draw[first] - blow[first] if d else blow[first] - draw[first]) - 1)
         if bend > room:
             fail(lick["name"], f"{tok}: this hole bends {room} half step(s) on a {lick['tuning']} harmonica")
-        for i, n in zip(ids, nums):
-            notes.append(60 + (draw if d else blow)[n - 1] - (bend if n - 1 == first else 0))
         steps.append(([i + 1 for i in ids], bend, ms))
     if not 0 < len(steps) < 256:
         fail(lick["name"], f"{len(steps)} steps: 1 to 255")
-    if not any(53 + 12 * o <= min(notes) and max(notes) <= 53 + 12 * o + NKEYS - 1 for o in OCTS):
-        fail(lick["name"], f"notes {min(notes)}..{max(notes)}: wider than the keyboard's octaves can show")
     return steps
 
 
@@ -109,9 +104,12 @@ def write_header(licks, out):
                 row = "   "
             row += s
         lines += [row, "};"]
-        table.append('    {"%s", L_%s, %d, %s},' % (l["name"], l["name"], len(steps), TUN[l["tuning"]][0]))
+        pos = re.search(r"\b([1-4])(?:st|nd|rd|th) position", l["what"])   # the description names the position
+        table.append('    {"%s", L_%s, %d, %s, %s},' % (l["name"], l["name"], len(steps), TUN[l["tuning"]][0],
+                                                      pos[1] if pos else 0))
     lines += ["static const struct {", "    const char *name;", "    const lstep_t *steps;", "    uint8_t n;",
               "    uint8_t tuning;                      /* the harmonica it is written for (T_*) */",
+              "    uint8_t pos;                         /* the position it is played in, 1..4 (0: not said) */",
               "} LICKS[] = {", *table, "};"]
     Path(out).write_text("\n".join(lines) + "\n")
     secs = [sum(s[2] + GAP_MS for s in steps_of(l)) / 1000 for l in licks]

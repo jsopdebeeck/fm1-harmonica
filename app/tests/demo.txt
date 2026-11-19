@@ -5,32 +5,39 @@ wav demo-samples.wav
 tap PLAY
 wait 3200
 tap PLAY
-# the scale of C, hole 4 blow to hole 7 blow (keys 19 21 23 24 26)
-key 19 down
+# the scale of C: +4 -4 +5 -5 +6 -6 -7 +7 (w3..w6 the holes, w10 DRAW)
+key w3 down
 wait 400
-key 19 up
-key 21 down
+key w10 down
 wait 400
-key 21 up
-key 23 down
+key w10 up
+key w3 up
+key w4 down
 wait 400
-key 23 up
-key 24 down
+key w10 down
 wait 400
-key 24 up
-key 26 down
+key w10 up
+key w4 up
+key w5 down
+wait 400
+key w10 down
+wait 400
+key w5 up
+key w6 down
+wait 400
+key w10 up
 wait 900
-key 26 up
-# a chord: C4 E4 G4 C5 (1 and 2 blow, 2 draw, 4 blow: G4 is the lower hole, 2 draw)
-key 7 down
-key 11 down
-key 14 down
-key 19 down
+key w6 up
+# a chord: 1 2 3 4 blow
+key w0 down
+key w1 down
+key w2 down
+key w3 down
 wait 1200
-key 7 up
-key 11 up
-key 14 up
-key 19 up
+key w0 up
+key w1 up
+key w2 up
+key w3 up
 wait 600
 wavstop
 expect holes 0

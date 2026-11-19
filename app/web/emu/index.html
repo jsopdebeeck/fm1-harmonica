@@ -46,8 +46,8 @@ a { color: var(--accent); }
 .held .btnface, .held .keyface { stroke: #f28a5a; stroke-width: 3; }
 .latched .btnface, .latched .keyface { stroke: #6fc3ff; stroke-width: 3; }
 .keyface { transition: fill .06s; }
-/* HARMONICA: the keys' LEDs have one colour and two brightnesses, as on the FM-1: bright the blown notes, dim the
-   drawn ones */
+/* HARMONICA: the keys' LEDs have one colour and two brightnesses, as on the FM-1: dim the ten
+   holes, bright what sounds or is in use (a hole, DRAW, a bend) */
 .lit .keyface.white, .lit .keyface.black { fill: #ee8f52; }
 .dim .keyface.white, .dim .keyface.black { fill: #f6cfb2; }
 .start { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(10, 11, 13, .55); border-radius: 4.4% / 6.9%; }
@@ -89,7 +89,7 @@ kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); b
 <body>
 <header>
   <h1>{{NAME}}</h1>
-  <p>Bright keys: blown notes. Dim keys: drawn notes. Dark keys: notes this harmonica does not have (silent).</p>
+  <p>White keys 1 to 10 are the holes: a key blows its hole. Hold white key 11 (DRAW) to draw it. Hold white key 12, 13 or 14 to bend the note a half, a whole, a whole and a half step.</p>
 </header>
 <main>
 <h2 class="sr">The FM-1</h2>
